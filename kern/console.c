@@ -23,30 +23,31 @@ delay(void)
 
 /***** Serial I/O code *****/
 
-#define COM1		0x3F8
+#define COM1    0x3F8
 
-#define COM_RX		0       // In:  Receive buffer (DLAB=0)
-#define COM_TX		0       // Out: Transmit buffer (DLAB=0)
-#define COM_DLL		0       // Out: Divisor Latch Low (DLAB=1)
-#define COM_DLM		1       // Out: Divisor Latch High (DLAB=1)
-#define COM_IER		1       // Out: Interrupt Enable Register
-#define   COM_IER_RDI	0x01    //   Enable receiver data interrupt
-#define COM_IIR		2       // In:  Interrupt ID Register
-#define COM_FCR		2       // Out: FIFO Control Register
-#define COM_LCR		3       // Out: Line Control Register
-#define	  COM_LCR_DLAB	0x80    //   Divisor latch access bit
-#define	  COM_LCR_WLEN8	0x03    //   Wordlength: 8 bits
-#define COM_MCR		4       // Out: Modem Control Register
-#define	  COM_MCR_RTS	0x02    // RTS complement
-#define	  COM_MCR_DTR	0x01    // DTR complement
-#define	  COM_MCR_OUT2	0x08    // Out2 complement
-#define COM_LSR		5       // In:  Line Status Register
-#define   COM_LSR_DATA	0x01    //   Data available
-#define   COM_LSR_TXRDY	0x20    //   Transmit buffer avail
-#define   COM_LSR_TSRE	0x40    //   Transmitter off
+#define COM_RX           0    // In:  Receive buffer (DLAB=0)
+#define COM_TX           0    // Out: Transmit buffer (DLAB=0)
+#define COM_DLL          0    // Out: Divisor Latch Low (DLAB=1)
+#define COM_DLM          1    // Out: Divisor Latch High (DLAB=1)
+#define COM_IER          1    // Out: Interrupt Enable Register
+#define COM_IER_RDI   0x01    // Enable receiver data interrupt
+#define COM_IIR          2    // In:  Interrupt ID Register
+#define COM_FCR          2    // Out: FIFO Control Register
+#define COM_LCR          3    // Out: Line Control Register
+#define COM_LCR_DLAB  0x80    // Divisor latch access bit
+#define COM_LCR_WLEN8 0x03    // Wordlength: 8 bits
+#define COM_MCR          4    // Out: Modem Control Register
+#define COM_MCR_RTS   0x02    // RTS complement
+#define COM_MCR_DTR   0x01    // DTR complement
+#define COM_MCR_OUT2  0x08    // Out2 complement
+#define COM_LSR          5    // In:  Line Status Register
+#define COM_LSR_DATA  0x01    // Data available
+#define COM_LSR_TXRDY 0x20    // Transmit buffer avail
+#define COM_LSR_TSRE  0x40    // Transmitter off
 
 static bool serial_exists;
 
+// data available -> read data from RX buffer
 static int
 serial_proc_data(void)
 {
@@ -55,6 +56,7 @@ serial_proc_data(void)
   return inb(COM1 + COM_RX);
 }
 
+// Actually poll for interrupt events
 void
 serial_intr(void)
 {
@@ -62,14 +64,16 @@ serial_intr(void)
     cons_intr(serial_proc_data);
 }
 
+// TX a byte through the serial port
 static void
 serial_putc(int c)
 {
   int i;
 
+  // Wait for writable
   for (i = 0; !(inb(COM1 + COM_LSR) & COM_LSR_TXRDY) && i < 12800; i++)
     delay();
-
+  // Write the data
   outb(COM1 + COM_TX, c);
 }
 
@@ -167,6 +171,7 @@ cga_putc(int c)
   case '\n':
     crt_pos += CRT_COLS;
     /* fallthru */
+    // \n == \n\r
   case '\r':
     crt_pos -= (crt_pos % CRT_COLS);
     break;
@@ -183,6 +188,8 @@ cga_putc(int c)
   }
 
   // What is the purpose of this?
+  // Next charactor will out of screen.
+  // This shifts the texts upward by one line.
   if (crt_pos >= CRT_SIZE) {
     int i;
 
@@ -202,17 +209,17 @@ cga_putc(int c)
 
 /***** Keyboard input code *****/
 
-#define NO		0
+#define NO    0
 
-#define SHIFT		(1<<0)
-#define CTL		(1<<1)
-#define ALT		(1<<2)
+#define SHIFT       (1<<0)
+#define CTL         (1<<1)
+#define ALT         (1<<2)
 
-#define CAPSLOCK	(1<<3)
-#define NUMLOCK		(1<<4)
-#define SCROLLLOCK	(1<<5)
+#define CAPSLOCK    (1<<3)
+#define NUMLOCK     (1<<4)
+#define SCROLLLOCK  (1<<5)
 
-#define E0ESC		(1<<6)
+#define E0ESC       (1<<6)
 
 static uint8_t shiftcode[256] = {
   [0x1D] = CTL,
