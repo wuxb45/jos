@@ -19,4 +19,4 @@ GCCPREFIX=i386-jos-elf-
 # following line and set it to the full path to QEMU.
 #
 # QEMU=
-QEMU=/usr/bin/qemu-system-x86_64
+QEMU=/usr/bin/qemu-system-i386
