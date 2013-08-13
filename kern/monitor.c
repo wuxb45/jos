@@ -60,6 +60,17 @@ int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
   // Your code here.
+  uint32_t ebp,eip,arg1,arg2,arg3;
+  ebp = read_ebp();
+  while (ebp) {
+    eip = *(((uint32_t *) ebp) + 1);
+    arg1 = *(((uint32_t *) ebp) + 2);
+    arg2 = *(((uint32_t *) ebp) + 3);
+    arg3 = *(((uint32_t *) ebp) + 4);
+    cprintf("ebp -> %08x, caller eip -> %x, arg1 -> %x, arg2 -> %x, arg3 -> %x ...\n", ebp, eip, arg1, arg2, arg3);
+    // trace back
+    ebp = *((uint32_t *) ebp);
+  }
   return 0;
 }
 
