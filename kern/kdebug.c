@@ -42,7 +42,7 @@ extern const char __STABSTR_END__[];    // End of string table
 //              556    SO     f0100654
 //              657    SO     f0100849
 //      this code:
-//              left = 0, right = 657;
+//              left = 0, right = 657; (corresponding to Index)
 //              stab_binsearch(stabs, &left, &right, N_SO, 0xf0100184);
 //      will exit setting left = 118, right = 554.
 //
@@ -144,6 +144,7 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
   rfun = rfile;
   stab_binsearch(stabs, &lfun, &rfun, N_FUN, addr);
 
+  // Set [lline,rline] to a reasonable range.
   if (lfun <= rfun) {
     // stabs[lfun] points to the function name
     // in the string table, but check bounds just in case.
@@ -173,6 +174,10 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
   //      Look at the STABS documentation and <inc/stab.h> to find
   //      which one.
   // Your code here.
+  stab_binsearch(stabs, &lline, &rline, N_SLINE, addr);
+  if (lline <= rline) {
+    info->eip_line = stabs[lline].n_desc;
+  }
 
   // Search backwards from the line number for the relevant filename
   // stab.

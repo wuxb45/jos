@@ -23,6 +23,7 @@ struct Command {
 static struct Command commands[] = {
   {"help", "Display this list of commands", mon_help},
   {"kerninfo", "Display information about the kernel", mon_kerninfo},
+  {"backtrace", "Backtrace Current Call-Stack", mon_backtrace},
 };
 
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
@@ -62,16 +63,17 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
   // Your code here.
   uint32_t ebp,eip;
   uint32_t arg;
-  int i, di0, nargs;
+  int i, nargs;
   struct Eipdebuginfo info= {};
   char fnbuf[256];
-  ebp = read_ebp();
   cprintf("Stack backtrace:\n");
+
+  //current func
+  eip = read_eip();
+  ebp = read_ebp();
   while (ebp) {
-    // get values
-    eip = *(((uint32_t *) ebp) + 1);
     // get debuginfo
-    di0 = debuginfo_eip((uintptr_t)eip, &info);
+    (void)debuginfo_eip((uintptr_t)eip, &info);
     nargs = info.eip_fn_narg;
     // print stack info
     cprintf("  ebp %08x  eip %08x  args", ebp, eip);
@@ -80,11 +82,9 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
       cprintf(" %08x", arg);
     }
     // print symbol info
-    strncpy(fnbuf, info.eip_fn_name, info.eip_fn_namelen);
-    fnbuf[info.eip_fn_namelen]='\0';
-
-    cprintf("\n        %s:%d:   %s+%d\n", info.eip_file, info.eip_line, fnbuf, (eip - info.eip_fn_addr));
-    // trace back
+    cprintf("\n        %s:%d:   %.*s+%d\n", info.eip_file, info.eip_line, info.eip_fn_namelen, info.eip_fn_name, (eip - info.eip_fn_addr));
+    // trace back: next eip,ebp
+    eip = *(((uint32_t *) ebp) + 1);
     ebp = *((uint32_t *) ebp);
   }
   return 0;
