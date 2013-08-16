@@ -135,6 +135,9 @@
 
 /*
  * Macros to build GDT entries in assembly.
+ * 8 Bytes for one entry
+ * GDT -> [1st entry, 2nd entry, ...]
+ * offset of an entry is indicated by cs/es/etc...
  */
 #define SEG_NULL						\
 	.word 0, 0;						\
