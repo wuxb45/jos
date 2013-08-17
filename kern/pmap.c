@@ -156,7 +156,6 @@ mem_init(void)
   // array.  'npages' is the number of physical pages in memory.
   // Your code goes here:
   pages = boot_alloc(npages * (sizeof (struct Page)));
-  // TODO: no initialization on pages?
 
   //////////////////////////////////////////////////////////////////////
   // Now that we've allocated the initial kernel data structures, we set
@@ -168,9 +167,8 @@ mem_init(void)
 
   check_page_free_list(1);
   check_page_alloc();
-  panic("WIP");
   check_page();
-
+  panic("x");
   //////////////////////////////////////////////////////////////////////
   // Now we set up virtual memory
 
@@ -291,6 +289,7 @@ page_alloc(int alloc_flags)
   if (page_free_list) {
     struct Page *p = page_free_list;
     page_free_list = p->pp_link;
+    p->pp_link = NULL;
     if (alloc_flags & ALLOC_ZERO) { // fill with 0
       memset(page2kva(p), 0, PGSIZE);
     }
@@ -349,7 +348,42 @@ pte_t *
 pgdir_walk(pde_t * pgdir, const void *va, int create)
 {
   // Fill this function in
-  return NULL;
+  uint32_t pdx, pde;
+  uint32_t ptx;
+  struct Page *pd;
+  struct Page *p;
+  pte_t * ppte;
+
+  pdx = PDX((uint32_t)va);
+  if ((pgdir[pdx] & PTE_P) == 0) { // pd not present
+    if (create == 0) {
+      return NULL;
+    } else { // alloc a page_dir
+      pd =  page_alloc(ALLOC_ZERO);
+      if (pd) {
+        pgdir[pdx] = ((uint32_t)page2pa(pd)) | PTE_U | PTE_W | PTE_P;
+        pd->pp_ref = 1;
+      } else {
+        return NULL;
+      }
+    }
+  }
+  pde = pgdir[pdx];
+  ptx = PTX((uint32_t)va);
+  ppte = KADDR((uint32_t)(((pte_t *)PTE_ADDR(pde)) + ptx));
+//  if (((*ppte) & PTE_P) == 0) { //page not present
+//    if (create == 0) {
+//      return NULL;
+//    } else { // alloc the page
+//      if (p) {
+//        *ppte = ((uint32_t)page2kva(p)) | PTE_P;
+//        p->pp_ref = 1;
+//      } else {
+//        return NULL;
+//      }
+//    }
+//  }
+  return ppte;
 }
 
 //
@@ -367,6 +401,45 @@ boot_map_region(pde_t * pgdir, uintptr_t va, size_t size, physaddr_t pa,
                 int perm)
 {
   // Fill this function in
+  size_t offset = 0;
+  pte_t *ppte;
+  if (va < UTOP) {
+    return;
+  }
+  while (offset < size) { //assume size is aligned
+    ppte = pgdir_walk(pgdir, (void *)va + offset, 1);
+    if (ppte) {
+      *ppte = PTE_ADDR(va + offset) | perm | PTE_P;
+    }
+    offset += PGSIZE;
+  }
+}
+
+static void
+page_unfree(struct Page *pp) {
+  // search page in the free-list, remove it.
+  struct Page *search = page_free_list;
+  if (search == pp) {
+    page_free_list = search->pp_link;
+    pp->pp_link = NULL;
+    return;
+  }
+  while (search->pp_link) {
+    if (search->pp_link == pp) {
+      search->pp_link = pp->pp_link;
+      pp->pp_link = NULL;
+      return;
+    }
+    search = search->pp_link;
+  }
+}
+
+static void
+page_incref(struct Page *pp) {
+  pp->pp_ref++;
+  if (pp->pp_ref == 1) {
+    page_unfree(pp);
+  }
 }
 
 //
@@ -397,7 +470,26 @@ int
 page_insert(pde_t * pgdir, struct Page *pp, void *va, int perm)
 {
   // Fill this function in
-  return 0;
+  void * vaalign = (void *)PTE_ADDR(va);
+  struct Page * p;
+  pte_t * ppte;
+  ppte = pgdir_walk(pgdir, va, 1);
+  if (ppte) {
+    if ((*ppte) & PTE_P) { // exists
+      if (page2kva(pp) != vaalign) {
+        // remove map and remap
+        page_remove(pgdir, va);
+        page_incref(pp);
+      }
+      tlb_invalidate(pgdir, va);
+    } else {
+      page_incref(pp);
+    }
+    *ppte = page2pa(pp) | perm | PTE_P;
+    return 0;
+  } else {
+    return -E_NO_MEM;
+  }
 }
 
 //
@@ -415,7 +507,14 @@ struct Page *
 page_lookup(pde_t * pgdir, void *va, pte_t ** pte_store)
 {
   // Fill this function in
-  return NULL;
+  pte_t * ppte;
+  ppte = pgdir_walk(pgdir, va, 0);
+  if (ppte == NULL) {
+    return NULL;
+  } else if (pte_store) {
+    *pte_store = ppte;
+  }
+  return pa2page(PTE_ADDR(*ppte) | PGOFF(va));
 }
 
 //
@@ -437,6 +536,16 @@ void
 page_remove(pde_t * pgdir, void *va)
 {
   // Fill this function in
+  pte_t * ppte;
+  struct Page * p = page_lookup(pgdir, va, &ppte);
+  if (p && ((*ppte) & PTE_P)) {
+    *ppte = 0;
+    page_decref(p);
+    if (p->pp_ref == 0) {
+      *ppte = 0;
+      tlb_invalidate(pgdir, va);
+    }
+  }
 }
 
 //
