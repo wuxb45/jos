@@ -4,7 +4,7 @@
 #ifndef __ASSEMBLER__
 #include <inc/types.h>
 #include <inc/mmu.h>
-#endif /* not __ASSEMBLER__ */
+#endif                          /* not __ASSEMBLER__ */
 
 /*
  * This file contains definitions for memory management in our OS,
@@ -12,11 +12,11 @@
  */
 
 // Global descriptor numbers
-#define GD_KT     0x08     // kernel text
-#define GD_KD     0x10     // kernel data
-#define GD_UT     0x18     // user text
-#define GD_UD     0x20     // user data
-#define GD_TSS    0x28     // Task segment selector
+#define GD_KT     0x08          // kernel text
+#define GD_KD     0x10          // kernel data
+#define GD_UT     0x18          // user text
+#define GD_UD     0x20          // user data
+#define GD_TSS    0x28          // Task segment selector
 
 /*
  * Virtual memory map:                                Permissions
@@ -76,7 +76,6 @@
  *     at UTEMP.
  */
 
-
 // All physical memory mapped at this address
 #define	KERNBASE	0xF0000000
 
@@ -88,8 +87,8 @@
 
 // Kernel stack.
 #define KSTACKTOP	(KERNBASE - PTSIZE)
-#define KSTKSIZE	(8*PGSIZE)   		// size of a kernel stack
-#define ULIM		(KSTACKTOP - PTSIZE) 
+#define KSTKSIZE	(8*PGSIZE)      // size of a kernel stack
+#define ULIM		(KSTACKTOP - PTSIZE)
 
 /*
  * User read-only mappings! Anything below here til UTOP are readonly to user.
@@ -124,8 +123,7 @@
 // (should not conflict with other temporary page mappings)
 #define PFTEMP		(UTEMP + PTSIZE - PGSIZE)
 // The location of the user-level STABS data structure
-#define USTABDATA	(PTSIZE / 2)	
-
+#define USTABDATA	(PTSIZE / 2)
 
 #ifndef __ASSEMBLER__
 
@@ -147,8 +145,8 @@ typedef uint32_t pde_t;
  * will always be available at virtual address (VPT + (VPT >> PGSHIFT)), to
  * which vpd is set in entry.S.
  */
-extern volatile pte_t vpt[];     // VA of "virtual page table"
-extern volatile pde_t vpd[];     // VA of current page directory
+extern volatile pte_t vpt[];    // VA of "virtual page table"
+extern volatile pde_t vpd[];    // VA of current page directory
 #endif
 
 /*
@@ -162,16 +160,16 @@ extern volatile pde_t vpd[];     // VA of current page directory
  * with page2pa() in kern/pmap.h.
  */
 struct Page {
-	// Next page on the free list.
-	struct Page *pp_link;
+  // Next page on the free list.
+  struct Page *pp_link;
 
-	// pp_ref is the count of pointers (usually in page table entries)
-	// to this page, for pages allocated using page_alloc.
-	// Pages allocated at boot time using pmap.c's
-	// boot_alloc do not have valid reference count fields.
+  // pp_ref is the count of pointers (usually in page table entries)
+  // to this page, for pages allocated using page_alloc.
+  // Pages allocated at boot time using pmap.c's
+  // boot_alloc do not have valid reference count fields.
 
-	uint16_t pp_ref;
+  uint16_t pp_ref;
 };
 
-#endif /* !__ASSEMBLER__ */
-#endif /* !JOS_INC_MEMLAYOUT_H */
+#endif                          /* !__ASSEMBLER__ */
+#endif                          /* !JOS_INC_MEMLAYOUT_H */
