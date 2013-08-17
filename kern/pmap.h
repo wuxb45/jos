@@ -20,6 +20,7 @@ extern pde_t *kern_pgdir;
  * KERNBASE, where the machine's maximum 256MB of physical memory is mapped --
  * and returns the corresponding physical address.  It panics if you pass it a
  * non-kernel virtual address.
+ * Kernel-vaddr -> paddr
  */
 #define PADDR(kva) _paddr(__FILE__, __LINE__, kva)
 
