@@ -18,57 +18,60 @@
 #define GD_UD     0x20          // user data
 #define GD_TSS    0x28          // Task segment selector
 
+// PGSIZE: bytes mapped by a page (4096)
+// PTSIZE: bytes mapped by a page directory entry (4096 * 1024)
+
 /*
- * Virtual memory map:                                Permissions
- *                                                    kernel/user
+ * Virtual memory map:                                          Permissions
+ *                                                                    KK/UU
  *
  *    4 Gig -------->  +------------------------------+
- *                     |                              | RW/--
+ *                     |                              |               RW/--
  *                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *                     :              .               :
- *                     :              .               :
- *                     :              .               :
- *                     |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~| RW/--
- *                     |                              | RW/--
- *                     |   Remapped Physical Memory   | RW/--
- *                     |                              | RW/--
- *    KERNBASE ----->  +------------------------------+ 0xf0000000
- *                     |       Empty Memory (*)       | --/--  PTSIZE
- *    KSTACKTOP ---->  +------------------------------+ 0xefc00000      --+
- *                     |         Kernel Stack         | RW/--  KSTKSIZE   |
- *                     | - - - - - - - - - - - - - - -|                 PTSIZE
- *                     |      Invalid Memory (*)      | --/--             |
- *    ULIM     ------> +------------------------------+ 0xef800000      --+
- *                     |  Cur. Page Table (User R-)   | R-/R-  PTSIZE
- *    UVPT      ---->  +------------------------------+ 0xef400000
- *                     |          RO PAGES            | R-/R-  PTSIZE
- *    UPAGES    ---->  +------------------------------+ 0xef000000
- *                     |           RO ENVS            | R-/R-  PTSIZE
- * UTOP,UENVS ------>  +------------------------------+ 0xeec00000
- * UXSTACKTOP -/       |     User Exception Stack     | RW/RW  PGSIZE
- *                     +------------------------------+ 0xeebff000
- *                     |       Empty Memory (*)       | --/--  PGSIZE
- *    USTACKTOP  --->  +------------------------------+ 0xeebfe000
- *                     |      Normal User Stack       | RW/RW  PGSIZE
- *                     +------------------------------+ 0xeebfd000
+ *                     :              .               :                .
+ *                     :              .               :                .
+ *                     :              .               :                .
+ *                     |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|                .
  *                     |                              |
+ *                     |   Remapped Physical Memory   |               RW/--
  *                     |                              |
- *                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *    KERNBASE ----->  +------------------------------+ 0xf0000000    
+ *                     |       Empty Memory (*)       |               --/--  --PTSIZE
+ *    KSTACKTOP ---->  +------------------------------+ 0xefc00000           -----------+
+ *                     |         Kernel Stack         |               RW/--  --KSTKSIZE |
+ *                     | - - - - - - - - - - - - - - -|                               PTSIZE
+ *                     |      Invalid Memory (*)      |               --/--             |
+ *  / ULIM     ----->  +==============================+ 0xef800000           -----------+
+ * |                   |  Cur. Page Table (User R-)   |               R-/R-  --PTSIZE
+ * |  UVPT      ---->  +------------------------------+ 0xef400000    
+ * |                   |          RO PAGES            |               R-/R-  --PTSIZE
+ * |  UPAGES    ---->  +------------------------------+ 0xef000000    
+ * |                   |           RO ENVS            |               R-/R-  --PTSIZE
+ * |/ UTOP,UENVS --->  +------------------------------+ 0xeec00000    
+ * |  UXSTACKTOP -/    |     User Exception Stack     |               RW/RW  --PGSIZE
+ * |                   +------------------------------+ 0xeebff000    
+ * |                   |       Empty Memory (*)       |               --/--  --PGSIZE
+ * |/ USTACKTOP  --->  +------------------------------+ 0xeebfe000    
+ * |                   |      Normal User Stack       |               RW/RW  --PGSIZE
+ *                     +------------------------------+ 0xeebfd000    
+ * U                   |                              |
+ * S                   |                              |
+ * E                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * R                   .                              .
  *                     .                              .
- *                     .                              .
- *                     .                              .
- *                     |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|
- *                     |     Program Data & Heap      |
- *    UTEXT -------->  +------------------------------+ 0x00800000
- *    PFTEMP ------->  |       Empty Memory (*)       |        PTSIZE
- *                     |                              |
- *    UTEMP -------->  +------------------------------+ 0x00400000      --+
- *                     |       Empty Memory (*)       |                   |
- *                     | - - - - - - - - - - - - - - -|                   |
- *                     |  User STAB Data (optional)   |                 PTSIZE
- *    USTABDATA ---->  +------------------------------+ 0x00200000        |
- *                     |       Empty Memory (*)       |                   |
- *    0 ------------>  +------------------------------+                 --+
+ * |                   .                              .
+ * |                   |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|
+ * |                   |     Program Data & Heap      |
+ * |  UTEXT -------->  +------------------------------+ 0x00800000
+ * |  PFTEMP ------->  |       Empty Memory (*)       |               --PTSIZE
+ * |                   |                              |
+ * |  UTEMP -------->  +------------------------------+ 0x00400000      --+
+ * |                   |       Empty Memory (*)       |                   |
+ * |                   | - - - - - - - - - - - - - - -|                   |
+ * |                   |  User STAB Data (optional)   |                 PTSIZE
+ * |  USTABDATA ---->  +------------------------------+ 0x00200000        |
+ * |                   |       Empty Memory (*)       |                   |
+ *  \ 0 ------------>  +------------------------------+                 --+
  *
  * (*) Note: The kernel ensures that "Invalid Memory" (ULIM) is *never*
  *     mapped.  "Empty Memory" is normally unmapped, but user programs may
