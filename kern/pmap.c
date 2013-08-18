@@ -108,7 +108,7 @@ boot_alloc(uint32_t n)
     panic("Out of Memory (bound = 0x%08x)\n", limit);
   }
   nextfree += nalign;
-  cprintf("boot_alloc: alloced %d bytes at 0x%08x\n", nalign, result);
+  //cprintf("boot_alloc: alloced %d bytes at 0x%08x\n", nalign, result);
   return result;
 }
 
@@ -168,7 +168,6 @@ mem_init(void)
   check_page_free_list(1);
   check_page_alloc();
   check_page();
-  panic("x");
   //////////////////////////////////////////////////////////////////////
   // Now we set up virtual memory
 
@@ -177,8 +176,10 @@ mem_init(void)
   // Permissions:
   //    - the new image at UPAGES -- kernel R, user R
   //      (ie. perm = PTE_U | PTE_P)
-  //    - pages itself -- kernel RW, user NONE
+  //    - pages itself -- kernel RW, user NONE ??? contained in KERNBASE+
   // Your code goes here:
+  size_t pages_size = ROUNDUP(npages * sizeof(struct Page), PGSIZE);
+  boot_map_region(kern_pgdir, UPAGES, pages_size, PADDR(pages), PTE_U);
 
   //////////////////////////////////////////////////////////////////////
   // Use the physical memory that 'bootstack' refers to as the kernel
@@ -191,6 +192,12 @@ mem_init(void)
   //       overwrite memory.  Known as a "guard page".
   //     Permissions: kernel RW, user NONE
   // Your code goes here:
+  boot_map_region(kern_pgdir, (KSTACKTOP-KSTKSIZE),
+                  KSTKSIZE, PADDR(bootstack), PTE_W);
+  uintptr_t va;
+  for (va = KSTACKTOP - PTSIZE; va < PTSIZE - KSTKSIZE; va += PGSIZE) {
+    page_remove(kern_pgdir, (void *)va);
+  }
 
   //////////////////////////////////////////////////////////////////////
   // Map all of physical memory at KERNBASE.
@@ -200,10 +207,10 @@ mem_init(void)
   // we just set up the mapping anyway.
   // Permissions: kernel RW, user NONE
   // Your code goes here:
+  boot_map_region(kern_pgdir, KERNBASE, 0x10000000, 0, PTE_W);
 
   // Check that the initial page directory has been set up correctly.
   check_kern_pgdir();
-
   // Switch from the minimal entry page directory to the full kern_pgdir
   // page table we just created.  Our instruction pointer should be
   // somewhere between KERNBASE and KERNBASE+4MB right now, which is
@@ -409,7 +416,7 @@ boot_map_region(pde_t * pgdir, uintptr_t va, size_t size, physaddr_t pa,
   while (offset < size) { //assume size is aligned
     ppte = pgdir_walk(pgdir, (void *)va + offset, 1);
     if (ppte) {
-      *ppte = PTE_ADDR(va + offset) | perm | PTE_P;
+      *ppte = PTE_ADDR(pa + offset) | perm | PTE_P;
     }
     offset += PGSIZE;
   }
