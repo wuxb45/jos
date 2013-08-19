@@ -209,7 +209,7 @@ mem_init(void)
   // Permissions: kernel RW, user NONE
   // Your code goes here:
 
-#define CHALLENGE_1 (1)
+#define CHALLENGE_1 (0)
   if (CHALLENGE_1) {
     boot_map_region_4mb(kern_pgdir, KERNBASE, 0x10000000, 0, PTE_W);
     cr4 = rcr4();
@@ -218,6 +218,7 @@ mem_init(void)
   } else {
     boot_map_region(kern_pgdir, KERNBASE, 0x10000000, 0, PTE_W);
   }
+#undef CHALLENGE_1
 
   // Check that the initial page directory has been set up correctly.
   check_kern_pgdir();
@@ -240,7 +241,6 @@ mem_init(void)
   lcr0(cr0);
 
   // enable Page Size option in cr4
-#undef CHALLENGE_1
 
   // Some more checks, only possible after kern_pgdir is installed.
   check_page_installed_pgdir();
