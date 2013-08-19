@@ -10,6 +10,7 @@
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
+#include <kern/pmap.h>
 
 #define CMDBUF_SIZE	80      // enough for one VGA text line
 
@@ -24,6 +25,10 @@ static struct Command commands[] = {
   {"help", "Display this list of commands", mon_help},
   {"kerninfo", "Display information about the kernel", mon_kerninfo},
   {"backtrace", "Backtrace Current Call-Stack", mon_backtrace},
+  {"showmap", "Show Paging Translation Mappings", mon_showmappings},
+  {"permset", "Set/Unset page permissions", mon_permset},
+  {"dumppa", "Dump data in Physical Address", mon_dumppa},
+  {"dumpva", "Dump data in Virtual Address", mon_dumpva},
 };
 
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
@@ -65,7 +70,6 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
   uint32_t arg;
   int i, nargs;
   struct Eipdebuginfo info = { };
-  char fnbuf[256];
   cprintf("Stack backtrace:\n");
 
   //current func
@@ -87,6 +91,157 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
     // trace back: next eip,ebp
     eip = *(((uint32_t *) ebp) + 1);
     ebp = *((uint32_t *) ebp);
+  }
+  return 0;
+}
+
+int
+mon_showmappings(int argc, char ** argv, struct Trapframe *tf)
+{
+  cprintf("Show Mappings:\n");
+  if ((argc < 2)
+  || ((argv[1][0] != '0') && (argv[1][1] != 'x'))
+  || ((argc >= 3) && (argv[2][0] != '0') && (argv[2][1] != 'x'))) {
+    cprintf("  Usage:\n    # showmap 0x<HEXADDR> 0x<HEXADDR>\n");
+    cprintf("  or:\n    # showmap 0x<HEXADDR>\n");
+    return 0;
+  }
+  uintptr_t start, end, paddr, vaddr;
+  start = PTE_ADDR(strtol(&argv[1][2], NULL, 16));
+  if (argc == 2) {
+    end = start + PGSIZE;
+  } else {
+    end = PTE_ADDR(strtol(&argv[2][2], NULL, 16));
+  }
+  cprintf("Mappings in [0x%08x, 0x%08x):\n", start, end);
+  //pde_t * curr_pgdir = (pde_t *)rcr3();
+  //cprintf("cr3: %08x, kern_pgdir: %08x\n", (uintptr_t)curr_pgdir, kern_pgdir);
+  for (vaddr = start; vaddr < end; vaddr += PGSIZE) {
+    // TODO: use pgdir_walk()
+    //paddr = check_va2pa(kern_pgdir, vaddr);
+    pte_t * ppte = pgdir_walk(kern_pgdir, (void *)vaddr, 0);
+    if (ppte == NULL || ((*ppte) & PTE_P) == 0) {
+      cprintf("  [%08x] -> [--------]\n", vaddr);
+    } else {
+      paddr = PTE_ADDR(*ppte);
+      cprintf("  [%08x] -> [%08x]\n", vaddr, paddr);
+    }
+  }
+  return 0;
+}
+
+int
+mon_permset(int argc, char ** argv, struct Trapframe *tf)
+{
+  uint32_t newperm;
+  if (argc < 3) {
+    cprintf("  Usage:\n  # permset 0x<HEXADDR> {+W | -W | +U | -U}\n");
+    return 0;
+  }
+
+  uintptr_t va;
+  va = PTE_ADDR(strtol(&argv[1][2], NULL, 16));
+  pte_t * ppte = pgdir_walk(kern_pgdir, (void *)va, 0);
+  if (ppte == NULL) {
+    cprintf("VA Not mapped\n");
+    return 0;
+  }
+  cprintf("Original pte: 0x%08x\n", *ppte);
+  if (strcmp(argv[2], "+W") == 0) {
+    *ppte |= PTE_W;
+  } else if (strcmp(argv[2], "-W") == 0) {
+    *ppte &= (~PTE_W);
+  } else if (strcmp(argv[2], "+U") == 0) {
+    *ppte |= PTE_U;
+  } else if (strcmp(argv[2], "-U") == 0) {
+    *ppte &= (~PTE_U);
+  } else {
+    cprintf("Unknown option: %s\n", argv[2]);
+    return 0;
+  }
+  cprintf("Updated pte : 0x%08x\n", *ppte);
+  tlb_invalidate(kern_pgdir, (void *)va);
+  return 0;
+}
+
+int
+dump_helper(uintptr_t page_addr, int pa)
+{
+  uint32_t a;
+  uint32_t ix;
+  uint32_t *ptr;
+  if (pa) {
+    ptr = (uint32_t *)(page_addr + KERNBASE);
+  } else {
+    ptr = (uint32_t *)(page_addr);
+  }
+
+  // check for mapped
+  pte_t * ppte = pgdir_walk(kern_pgdir, ptr, 0);
+  if (ppte == NULL || ((*ppte) & PTE_P) == 0) {
+    cprintf("Page not Mapped: [0x%08x]\n", page_addr);
+    return 0;
+  }
+
+  for (ix = 0; ix < (PGSIZE / sizeof(uint32_t)); ix++) {
+    if ((ix % 16) == 0) {
+      a = (uint32_t)(ptr+ix);
+      cprintf("\n[%08x]: ", a);
+    } else {
+      cprintf(" ");
+    }
+    cprintf("[%08x]", ptr[ix]);
+  }
+  cprintf("\n");
+  return 0;
+}
+
+int
+mon_dumpva(int argc, char ** argv, struct Trapframe *tf)
+{
+  uint32_t n, i;
+  uint32_t ix, va;
+
+  if (argc < 2) {
+    cprintf("  Usage:\n  # dumpva 0x<HEXADDR> [nr_pages]\n");
+    return 0;
+  }
+
+  if (argc >= 3) {
+    n = strtol(argv[2], NULL, 16);
+  } else {
+    n = 1;
+  }
+
+  va = PTE_ADDR(strtol(&argv[1][2], NULL, 16));
+  for (i = 0; i < n; i++) {
+    dump_helper(va, 0);
+    va += PGSIZE;
+  }
+  return 0;
+}
+
+int
+mon_dumppa(int argc, char ** argv, struct Trapframe *tf)
+{
+  uint32_t n, i;
+  uint32_t ix, pa;
+
+  if (argc < 2) {
+    cprintf("  Usage:\n  # dumpva 0x<HEXADDR> [nr_pages]\n");
+    return 0;
+  }
+
+  if (argc >= 3) {
+    n = strtol(argv[2], NULL, 16);
+  } else {
+    n = 1;
+  }
+
+  pa = PTE_ADDR(strtol(&argv[1][2], NULL, 16));
+  for (i = 0; i < n; i++) {
+    dump_helper(pa, 1);
+    pa += PGSIZE;
   }
   return 0;
 }
