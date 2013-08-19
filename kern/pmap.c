@@ -63,6 +63,8 @@ static void check_page(void);
 static void check_page_installed_pgdir(void);
 static void boot_map_region(pde_t * pgdir, uintptr_t va, size_t size,
                             physaddr_t pa, int perm);
+static void boot_map_region_4mb(pde_t * pgdir, uintptr_t va, size_t size,
+                            physaddr_t pa, int perm);
 
 // This simple physical memory allocator is used only while JOS is setting
 // up its virtual memory system.  page_alloc() is the real allocator.
@@ -124,7 +126,7 @@ boot_alloc(uint32_t n)
 void
 mem_init(void)
 {
-  uint32_t cr0;
+  uint32_t cr0, cr4;
   size_t n;
 
   // Find out how much memory the machine has (npages & npages_basemem).
@@ -207,7 +209,16 @@ mem_init(void)
   // we just set up the mapping anyway.
   // Permissions: kernel RW, user NONE
   // Your code goes here:
-  boot_map_region(kern_pgdir, KERNBASE, 0x10000000, 0, PTE_W);
+
+#define CHALLENGE_1 (1)
+  if (CHALLENGE_1) {
+    boot_map_region_4mb(kern_pgdir, KERNBASE, 0x10000000, 0, PTE_W);
+    cr4 = rcr4();
+    cr4 |= CR4_PSE;
+    lcr4(cr4);
+  } else {
+    boot_map_region(kern_pgdir, KERNBASE, 0x10000000, 0, PTE_W);
+  }
 
   // Check that the initial page directory has been set up correctly.
   check_kern_pgdir();
@@ -228,6 +239,9 @@ mem_init(void)
   cr0 |= CR0_PE | CR0_PG | CR0_AM | CR0_WP | CR0_NE | CR0_MP;
   cr0 &= ~(CR0_TS | CR0_EM);
   lcr0(cr0);
+
+  // enable Page Size option in cr4
+#undef CHALLENGE_1
 
   // Some more checks, only possible after kern_pgdir is installed.
   check_page_installed_pgdir();
@@ -378,18 +392,6 @@ pgdir_walk(pde_t * pgdir, const void *va, int create)
   pde = pgdir[pdx];
   ptx = PTX((uint32_t)va);
   ppte = KADDR((uint32_t)(((pte_t *)PTE_ADDR(pde)) + ptx));
-//  if (((*ppte) & PTE_P) == 0) { //page not present
-//    if (create == 0) {
-//      return NULL;
-//    } else { // alloc the page
-//      if (p) {
-//        *ppte = ((uint32_t)page2kva(p)) | PTE_P;
-//        p->pp_ref = 1;
-//      } else {
-//        return NULL;
-//      }
-//    }
-//  }
   return ppte;
 }
 
@@ -421,6 +423,29 @@ boot_map_region(pde_t * pgdir, uintptr_t va, size_t size, physaddr_t pa,
     offset += PGSIZE;
   }
 }
+
+// map large range of memory using pages of 4MB
+static void
+boot_map_region_4mb(pde_t * pgdir, uintptr_t va, size_t size,
+                   physaddr_t pa, int perm)
+{
+  uint32_t pdx;
+  pte_t *ppde;
+  uintptr_t offset = 0;
+  uintptr_t vaalign, paalign;
+  const uint32_t fourmb = 4 * 1024 * 1024;
+  vaalign = va & (~ (fourmb - 1));
+  paalign = pa & (~ (fourmb - 1));
+  // caution: overflow of offset?
+  // assert va + size < 4GB, pa + size < 4GB
+  for (offset = 0; offset < size; offset += fourmb) {
+    pdx = PDX((uint32_t)(vaalign + offset));
+    pgdir[pdx] = ((paalign + offset) & 0xffc00000) | perm | PTE_PS | PTE_P;
+    //cprintf("map4mb: va:%08x, pa:%08x, pde=%08x\n",
+    //        vaalign+offset, paalign+offset, pgdir[pdx]);
+  }
+}
+
 
 static void
 page_unfree(struct Page *pp) {
@@ -766,15 +791,27 @@ check_kern_pgdir(void)
 static physaddr_t
 check_va2pa(pde_t * pgdir, uintptr_t va)
 {
+  // if Page Size is set...
   pte_t *p;
+  uint32_t cr4;
+  uintptr_t pa;
+  cr4 = rcr4();
 
   pgdir = &pgdir[PDX(va)];
-  if (!(*pgdir & PTE_P))
+  if (!(*pgdir & PTE_P)) // PDE not present
     return ~0;
-  p = (pte_t *) KADDR(PTE_ADDR(*pgdir));
-  if (!(p[PTX(va)] & PTE_P))
-    return ~0;
-  return PTE_ADDR(p[PTX(va)]);
+  // if 4KB
+  if (((cr4 & CR4_PSE) == 0) || (((*pgdir) & PTE_PS) == 0)) {
+    p = (pte_t *) KADDR(PTE_ADDR(*pgdir));
+    if (!(p[PTX(va)] & PTE_P)) // PTE not present
+      return ~0;
+    pa = PTE_ADDR(p[PTX(va)]); // address found
+    //cprintf("check_va2pa(4K): va:%08x, pa:%08x\n", va, pa);
+  } else {
+    pa = ((uintptr_t)(*pgdir) & 0xffc00000) | (va & 0x3fffff);
+    //cprintf("check_va2pa(4M): va:%08x, pa:%08x\n", va, pa);
+  }
+  return pa;
 }
 
 // check page_insert, page_remove, &c
