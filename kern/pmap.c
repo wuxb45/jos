@@ -110,7 +110,6 @@ boot_alloc(uint32_t n)
     panic("Out of Memory (bound = 0x%08x)\n", limit);
   }
   nextfree += nalign;
-  //cprintf("boot_alloc: alloced %d bytes at 0x%08x\n", nalign, result);
   return result;
 }
 
@@ -441,8 +440,6 @@ boot_map_region_4mb(pde_t * pgdir, uintptr_t va, size_t size,
   for (offset = 0; offset < size; offset += fourmb) {
     pdx = PDX((uint32_t)(vaalign + offset));
     pgdir[pdx] = ((paalign + offset) & 0xffc00000) | perm | PTE_PS | PTE_P;
-    //cprintf("map4mb: va:%08x, pa:%08x, pde=%08x\n",
-    //        vaalign+offset, paalign+offset, pgdir[pdx]);
   }
 }
 
@@ -806,10 +803,8 @@ check_va2pa(pde_t * pgdir, uintptr_t va)
     if (!(p[PTX(va)] & PTE_P)) // PTE not present
       return ~0;
     pa = PTE_ADDR(p[PTX(va)]); // address found
-    //cprintf("check_va2pa(4K): va:%08x, pa:%08x\n", va, pa);
   } else {
     pa = ((uintptr_t)(*pgdir) & 0xffc00000) | (va & 0x3fffff);
-    //cprintf("check_va2pa(4M): va:%08x, pa:%08x\n", va, pa);
   }
   return pa;
 }
