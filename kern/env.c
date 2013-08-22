@@ -116,6 +116,14 @@ env_init(void)
 {
 	// Set up envs array
 	// LAB 3: Your code here.
+  size_t i;
+  env_free_list = &envs[0];
+  for (i = 0; i < NENV; i++) {
+    envs[i].env_status = ENV_FREE;
+    envs[i].env_id = 0;
+    envs[i].env_link = &envs[i+1];
+  }
+  envs[NENV-1].env_link = NULL;
 
 	// Per-CPU part of the initialization
 	env_init_percpu();
@@ -179,6 +187,15 @@ env_setup_vm(struct Env *e)
 	//    - The functions in kern/pmap.h are handy.
 
 	// LAB 3: Your code here.
+  e->env_pgdir = page2kva(p);
+  uint32_t pdid = PDX(UTOP);
+  for (pdid = PDX(UTOP); pdid < NPDENTRIES; pdid ++) {
+    // copy pde
+    const uint32_t pde = kern_pgdir[pdid];
+    e->env_pgdir[pdid] = pde;
+    // inc ref
+    page_incref(pa2page(PTE_ADDR(pde)));
+  }
 
 	// UVPT maps the env's own page table read-only.
 	// Permissions: kernel R, user R
@@ -267,6 +284,22 @@ region_alloc(struct Env *e, void *va, size_t len)
 	//   'va' and 'len' values that are not page-aligned.
 	//   You should round va down, and round (va + len) up.
 	//   (Watch out for corner-cases!)
+  const uint32_t vaalign = ROUNDDOWN((uint32_t)va);
+  const uint32_t endalign = ROUNDUP(((uint32_t)va) + len, PGSIZE);
+  const uint32_t lenalign = endalign - vaalign;
+  const uint32_t perm = PTE_W | PTE_U;
+  // TODO: alloc the pages
+  while (vaalign < lenalign) {
+    struct Page * pp = page_alloc(0);
+    if (pp == NULL) {
+      panic("Cannot Alloc struct Page");
+    }
+    const int r = page_insert(e->env_pgdir, pp, (void *)vaalign, perm);
+    if (r != 0) {
+      panic("cannot insert page");
+    }
+    vaalign += PGSIZE;
+  }
 }
 
 //
@@ -323,7 +356,8 @@ load_icode(struct Env *e, uint8_t *binary, size_t size)
 	//  What?  (See env_run() and env_pop_tf() below.)
 
 	// LAB 3: Your code here.
-
+  struct Proghdr *ph, *eph;
+  // TODO
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
 

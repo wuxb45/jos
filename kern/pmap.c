@@ -62,6 +62,7 @@ static void check_kern_pgdir(void);
 static physaddr_t check_va2pa(pde_t * pgdir, uintptr_t va);
 static void check_page(void);
 static void check_page_installed_pgdir(void);
+static void page_unfree(struct Page *pp);
 static void boot_map_region(pde_t * pgdir, uintptr_t va, size_t size,
                             physaddr_t pa, int perm);
 static void boot_map_region_4mb(pde_t * pgdir, uintptr_t va, size_t size,
@@ -478,7 +479,7 @@ page_unfree(struct Page *pp) {
   }
 }
 
-static void
+void
 page_incref(struct Page *pp) {
   pp->pp_ref++;
   if (pp->pp_ref == 1) {
