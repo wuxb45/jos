@@ -40,6 +40,11 @@
 .globl		_start
 _start = RELOC(entry)
 
+# entry is assigned by the linker, located after 0xf0000000 (0xf0100000).
+# _start is get by cutting the KERNBASE, resulting in an absolute
+# address starting from 0 (here _start is 0x100000).
+# As there is no reference to code/data address before relocated,
+# except for RELOC(entry_pgdir), it's safe to run this piece of code.
 .globl entry
 entry:
 	movw	$0x1234,0x472			# warm boot
