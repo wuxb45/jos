@@ -393,8 +393,6 @@ load_icode(struct Env *e, uint8_t *binary, size_t size)
   // entry point
   const uint32_t entry_point = elf->e_entry;
   e->env_tf.tf_eip = entry_point;
-  // segment registers
-  e->env_tf.tf_cs = 
 }
 
 //

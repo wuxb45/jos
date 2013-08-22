@@ -608,13 +608,14 @@ tlb_invalidate(pde_t * pgdir, void *va)
 
 static void
 print_region(uint32_t va_start, uint32_t va_last,
-             uint32_t pa_start, uint32_t pa_last)
+             uint32_t pa_start, uint32_t pa_last, pte_t *ppte)
 {
-  cprintf("[%08x -- %08x] => [%08x -- %08x] (%d(%d) pages)\n",
+  cprintf("[%08x -- %08x] => [%08x -- %08x] (%d pages, %c%c)\n",
           va_start, va_last + PGSIZE - 1,
           pa_start, pa_last + PGSIZE - 1,
-          (va_last - va_start) / PGSIZE + 1,
-          (pa_last - pa_start) / PGSIZE + 1);
+          (pa_last - pa_start) / PGSIZE + 1,
+          ((*ppte) & PTE_W) ? 'W' : ' ',
+          ((*ppte) & PTE_U) ? 'U' : ' ');
 }
 
 // show mapping of all addresses
@@ -627,7 +628,8 @@ paging_smart_scan(pde_t *pgdir)
   uint32_t va_start = xx, pa_start = xx;
   uint32_t va_last = xx, pa_last = xx;
   uint32_t va_curr, pa_curr;
-
+  uint32_t perm_last, perm_curr;
+  pte_t * ppte;
   while((pdid < NPDENTRIES) && (ptid < NPTENTRIES)) {
     va_curr = (uint32_t)PGADDR(pdid, ptid, 0);
     pa_curr = check_va2pa(pgdir, va_curr);
@@ -635,7 +637,7 @@ paging_smart_scan(pde_t *pgdir)
     if (pa_curr == xx) { // stop valid mappings
       if (va_start != xx) {
         // print region
-        print_region(va_start, va_last, pa_start, pa_last);
+        print_region(va_start, va_last, pa_start, pa_last, ppte);
         // clear start
         va_start = va_last = xx;
         pa_start = pa_last = xx;
@@ -644,13 +646,15 @@ paging_smart_scan(pde_t *pgdir)
       if (va_last != xx) {// not first mapping
         if ((pa_last + PGSIZE) != pa_curr) { // non-continuous
           //print previous region
-          print_region(va_start, va_last, pa_start, pa_last);
+          print_region(va_start, va_last, pa_start, pa_last, ppte);
           va_start = va_curr;
           pa_start = pa_curr;
+          ppte = pgdir_walk(pgdir, (void *)va_curr, 0);
         }
       } else { // first mapping
         va_start = va_curr;
         pa_start = pa_curr;
+        ppte = pgdir_walk(pgdir, (void *)va_curr, 0);
       }
       va_last = va_curr;
       pa_last = pa_curr;
@@ -663,7 +667,7 @@ paging_smart_scan(pde_t *pgdir)
     }
   }
   if (va_last != xx) {
-    print_region(va_start, va_last, pa_start, pa_last);
+    print_region(va_start, va_last, pa_start, pa_last, ppte);
   }
 }
 
