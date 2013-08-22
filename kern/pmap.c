@@ -239,6 +239,7 @@ mem_init(void)
 
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
+  paging_smart_scan(kern_pgdir);
 
 	// Switch from the minimal entry page directory to the full kern_pgdir
 	// page table we just created.	Our instruction pointer should be
@@ -605,6 +606,67 @@ tlb_invalidate(pde_t * pgdir, void *va)
   invlpg(va);
 }
 
+static void
+print_region(uint32_t va_start, uint32_t va_last,
+             uint32_t pa_start, uint32_t pa_last)
+{
+  cprintf("[%08x -- %08x] => [%08x -- %08x] (%d(%d) pages)\n",
+          va_start, va_last + PGSIZE - 1,
+          pa_start, pa_last + PGSIZE - 1,
+          (va_last - va_start) / PGSIZE + 1,
+          (pa_last - pa_start) / PGSIZE + 1);
+}
+
+// show mapping of all addresses
+// 4k-pages only
+void
+paging_smart_scan(pde_t *pgdir)
+{
+  uint32_t pdid = 0, ptid = 0;
+  const uint32_t xx = ~0;
+  uint32_t va_start = xx, pa_start = xx;
+  uint32_t va_last = xx, pa_last = xx;
+  uint32_t va_curr, pa_curr;
+
+  while((pdid < NPDENTRIES) && (ptid < NPTENTRIES)) {
+    va_curr = (uint32_t)PGADDR(pdid, ptid, 0);
+    pa_curr = check_va2pa(pgdir, va_curr);
+
+    if (pa_curr == xx) { // stop valid mappings
+      if (va_start != xx) {
+        // print region
+        print_region(va_start, va_last, pa_start, pa_last);
+        // clear start
+        va_start = va_last = xx;
+        pa_start = pa_last = xx;
+      }
+    } else { // has mapping here
+      if (va_last != xx) {// not first mapping
+        if ((pa_last + PGSIZE) != pa_curr) { // non-continuous
+          //print previous region
+          print_region(va_start, va_last, pa_start, pa_last);
+          va_start = va_curr;
+          pa_start = pa_curr;
+        }
+      } else { // first mapping
+        va_start = va_curr;
+        pa_start = pa_curr;
+      }
+      va_last = va_curr;
+      pa_last = pa_curr;
+    }
+
+    ptid++;
+    if (ptid == NPTENTRIES) {
+      ptid=0;
+      pdid++;
+    }
+  }
+  if (va_last != xx) {
+    print_region(va_start, va_last, pa_start, pa_last);
+  }
+}
+
 static uintptr_t user_mem_check_addr;
 
 //
@@ -871,7 +933,7 @@ check_va2pa(pde_t * pgdir, uintptr_t va)
     if (!(p[PTX(va)] & PTE_P)) // PTE not present
       return ~0;
     pa = PTE_ADDR(p[PTX(va)]); // address found
-  } else {
+  } else { // 4MB mapping
     pa = ((uintptr_t)(*pgdir) & 0xffc00000) | (va & 0x3fffff);
   }
   return pa;

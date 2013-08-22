@@ -87,5 +87,6 @@ page2kva(struct Page *pp)
 }
 
 pte_t *pgdir_walk(pde_t * pgdir, const void *va, int create);
+void paging_smart_scan(pde_t *pgdir);
 
 #endif                          /* !JOS_KERN_PMAP_H */
