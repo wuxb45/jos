@@ -102,7 +102,7 @@ trap_init(void)
   SETGATE(idt[T_ALIGN],   1, GD_KT, t_align,   0);
   SETGATE(idt[T_MCHK],    1, GD_KT, t_mchk,    0);
   SETGATE(idt[T_SIMDERR], 1, GD_KT, t_simderr, 0);
-  //SETGATE(idt[T_SYSCALL], 1, GD_KT, t_syscall, 0);
+  SETGATE(idt[T_SYSCALL], 1, GD_KT, t_syscall, 3);
 	// Per-CPU setup 
 	trap_init_percpu();
 }
@@ -190,6 +190,9 @@ trap_dispatch(struct Trapframe *tf)
     case T_DEBUG:
       break_point_handler(tf);
       return;
+    case T_SYSCALL:
+      syscall_handler(tf);
+      return;
     default:
       break;
   }
@@ -271,4 +274,19 @@ break_point_handler(struct Trapframe *tf)
 {
   cprintf("Break Point!\n============\n");
   monitor(tf);
+}
+
+void
+syscall_handler(struct Trapframe *tf)
+{
+  cprintf("SYSCALL handler\n");
+  uint32_t no, a1, a2, a3, a4, a5, r;
+  no = tf->tf_regs.reg_eax;
+  a1 = tf->tf_regs.reg_edx;
+  a2 = tf->tf_regs.reg_ecx;
+  a3 = tf->tf_regs.reg_ebx;
+  a4 = tf->tf_regs.reg_edi;
+  a5 = tf->tf_regs.reg_esi;
+  r = syscall(no, a1, a2, a3, a4, a5);
+  tf->tf_regs.reg_eax = r;
 }
