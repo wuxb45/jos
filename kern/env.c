@@ -287,13 +287,13 @@ region_alloc(struct Env *e, void *va, size_t len)
   uint32_t vaalign = ROUNDDOWN((uint32_t)va, PGSIZE);
   const uint32_t endalign = ROUNDUP(((uint32_t)va) + len, PGSIZE);
   const uint32_t perm = PTE_W | PTE_U;
-  cprintf("region_alloc: VA  %08x, len: %08x\n", (uint32_t)va, len);
+  //cprintf("region_alloc: VA  %08x, len: %08x\n", (uint32_t)va, len);
   while (vaalign < endalign) {
     struct Page * pp = page_alloc(0);
     if (pp == NULL) {
       panic("Cannot Alloc struct Page");
     }
-    cprintf("region_alloc: map %08x\n", vaalign);
+    //cprintf("region_alloc: map %08x\n", vaalign);
     const int r = page_insert(e->env_pgdir, pp, (void *)vaalign, perm);
     if (r != 0) {
       panic("cannot insert page");
@@ -415,7 +415,7 @@ env_create(uint8_t *binary, size_t size, enum EnvType type)
   //panic("env_create");
   load_icode(e, binary, size);
   e->env_type = ENV_TYPE_USER;
-  paging_smart_scan(e->env_pgdir);
+  //paging_smart_scan(e->env_pgdir);
   //panic("end of env_create()");
 }
 

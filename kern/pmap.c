@@ -239,7 +239,7 @@ mem_init(void)
 
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
-  paging_smart_scan(kern_pgdir);
+  //paging_smart_scan(kern_pgdir);
 
 	// Switch from the minimal entry page directory to the full kern_pgdir
 	// page table we just created.	Our instruction pointer should be
