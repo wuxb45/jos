@@ -7,6 +7,8 @@
 #include <inc/assert.h>
 #include <inc/x86.h>
 
+#include <kern/env.h>
+
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
@@ -30,6 +32,7 @@ static struct Command commands[] = {
   {"permset", "Set/Unset page permissions", mon_permset},
   {"dumppa", "Dump data in Physical Address", mon_dumppa},
   {"dumpva", "Dump data in Virtual Address", mon_dumpva},
+  {"resume", "Resume from Break Point", mon_resume},
 };
 
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
@@ -245,6 +248,19 @@ mon_dumppa(int argc, char ** argv, struct Trapframe *tf)
     pa += PGSIZE;
   }
   return 0;
+}
+
+int
+mon_resume(int argc, char ** argv, struct Trapframe *tf)
+{
+  //curenv = tf;
+  if (curenv) {
+    curenv->env_tf.tf_eip++;
+    return -1;
+  } else {
+    cprintf("resume: no curenv!\n");
+    return 0;
+  }
 }
 
 /***** Kernel monitor command interpreter *****/
