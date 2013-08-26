@@ -30,5 +30,6 @@ DECLARE_MON(permset);
 DECLARE_MON(dumpva);
 DECLARE_MON(dumppa);
 DECLARE_MON(resume);
+DECLARE_MON(step);
 
 #endif                          // !JOS_KERN_MONITOR_H

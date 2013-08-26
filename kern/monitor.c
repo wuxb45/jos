@@ -33,6 +33,7 @@ static struct Command commands[] = {
   {"dumppa", "Dump data in Physical Address", mon_dumppa},
   {"dumpva", "Dump data in Virtual Address", mon_dumpva},
   {"resume", "Resume from Break Point", mon_resume},
+  {"step", "Stepping one instruction", mon_step},
 };
 
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
@@ -255,10 +256,22 @@ mon_resume(int argc, char ** argv, struct Trapframe *tf)
 {
   //curenv = tf;
   if (curenv) {
-    curenv->env_tf.tf_eip++;
+    //curenv->env_tf.tf_eip++;
     return -1;
   } else {
     cprintf("resume: no curenv!\n");
+    return 0;
+  }
+}
+
+int
+mon_step(int argc, char ** argv, struct Trapframe *tf)
+{
+  if (curenv) {
+    curenv->env_tf.tf_eflags |= 0x100;
+    return -1;
+  } else {
+    cprintf("step: no curenv!\n");
     return 0;
   }
 }

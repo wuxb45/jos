@@ -187,6 +187,9 @@ trap_dispatch(struct Trapframe *tf)
     case T_BRKPT:
       break_point_handler(tf);
       return;
+    case T_DEBUG:
+      break_point_handler(tf);
+      return;
     default:
       break;
   }
@@ -196,7 +199,8 @@ trap_dispatch(struct Trapframe *tf)
 	if (tf->tf_cs == GD_KT)
 		panic("unhandled trap in kernel");
 	else {
-		env_destroy(curenv);
+		panic("unhandled trap in user");
+		//env_destroy(curenv);
 		return;
 	}
 }
