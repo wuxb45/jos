@@ -220,7 +220,7 @@ trap(struct Trapframe *tf)
 	// the interrupt path.
 	assert(!(read_eflags() & FL_IF));
 
-	cprintf("Incoming TRAP frame at %p\n", tf);
+	//cprintf("Incoming TRAP frame at %p\n", tf);
 
 	if ((tf->tf_cs & 3) == 3) {
 		// Trapped from user mode.
@@ -257,6 +257,9 @@ page_fault_handler(struct Trapframe *tf)
 	// Handle kernel-mode page faults.
 
 	// LAB 3: Your code here.
+	cprintf("[%08x] user fault va %08x ip %08x\n",
+		curenv->env_id, fault_va, tf->tf_eip);
+	print_trapframe(tf);
   panic("trapped by handler: page fault");
 
 	// We've already handled kernel-mode exceptions, so if we get here,
@@ -279,7 +282,6 @@ break_point_handler(struct Trapframe *tf)
 void
 syscall_handler(struct Trapframe *tf)
 {
-  cprintf("SYSCALL handler\n");
   uint32_t no, a1, a2, a3, a4, a5, r;
   no = tf->tf_regs.reg_eax;
   a1 = tf->tf_regs.reg_edx;
