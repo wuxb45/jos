@@ -228,19 +228,19 @@ mem_init(void)
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
 
+#define CHALLENGE_1 (0)
+  if (CHALLENGE_1) {
+    boot_map_region_4mb(kern_pgdir, KERNBASE, 0x10000000, 0, PTE_W);
+    uint32_t cr4 = rcr4();
+    cr4 |= CR4_PSE;
+    lcr4(cr4);
+  } else {
+    boot_map_region(kern_pgdir, KERNBASE, 0x10000000, 0, PTE_W);
+  }
+#undef CHALLENGE_1
+
 	// Initialize the SMP-related parts of the memory map
 	mem_init_mp();
-////FROM LAB 3
-//#define CHALLENGE_1 (0)
-//  if (CHALLENGE_1) {
-//    boot_map_region_4mb(kern_pgdir, KERNBASE, 0x10000000, 0, PTE_W);
-//    uint32_t cr4 = rcr4();
-//    cr4 |= CR4_PSE;
-//    lcr4(cr4);
-//  } else {
-//    boot_map_region(kern_pgdir, KERNBASE, 0x10000000, 0, PTE_W);
-//  }
-//#undef CHALLENGE_1
 
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
@@ -256,6 +256,7 @@ mem_init(void)
 	lcr3(PADDR(kern_pgdir));
 
 	check_page_free_list(0);
+  panic("xx");
 
 	// entry.S set the really important flags in cr0 (including enabling
 	// paging).  Here we configure the rest of the flags that we care about.
@@ -318,29 +319,6 @@ page_init(void)
 	// Change your code to mark the physical page at MPENTRY_PADDR
 	// as in use
 
-	// The example code here marks all physical pages as free.
-	// However this is not truly the case.  What memory is free?
-	//  1) Mark physical page 0 as in use.
-	//     This way we preserve the real-mode IDT and BIOS structures
-	//     in case we ever need them.  (Currently we don't, but...)
-	//  2) The rest of base memory, [PGSIZE, npages_basemem * PGSIZE)
-	//     is free.
-	//  3) Then comes the IO hole [IOPHYSMEM, EXTPHYSMEM), which must
-	//     never be allocated.
-	//  4) Then extended memory [EXTPHYSMEM, ...).
-	//     Some of it is in use, some is free. Where is the kernel
-	//     in physical memory?  Which pages are already in use for
-	//     page tables and other data structures?
-	//
-	// Change the code to reflect this.
-	// NB: DO NOT actually touch the physical memory corresponding to
-	// free pages!
-	size_t i;
-	for (i = 0; i < npages; i++) {
-		pages[i].pp_ref = 0;
-		pages[i].pp_link = page_free_list;
-		page_free_list = &pages[i];
-	}
   // The example code here marks all physical pages as free.
   // However this is not truly the case.  What memory is free?
   //  1) Mark physical page 0 as in use.
@@ -359,10 +337,11 @@ page_init(void)
   // NB: DO NOT actually touch the physical memory corresponding to
   // free pages!
 
-  // TODO: below merged from lab 3
   size_t i;
   // base memory // pages[0]
+  const size_t skip_mpentry = PGNUM(MPENTRY_PADDR);
   for (i = 1; i < npages_basemem; i++) {
+    if (i == skip_mpentry) continue;
     page_free(&pages[i]);
   }
   // skip [IO ~ ext)
@@ -666,17 +645,14 @@ void
 tlb_invalidate(pde_t * pgdir, void *va)
 {
   // Flush the entry only if we're modifying the current address space.
-  // For now, there is only one address space, so always invalidate.
-  invlpg(va);
+	if (!curenv || curenv->env_pgdir == pgdir)
+    invlpg(va);
 }
 
 static void
 print_region(uint32_t va_start, uint32_t va_last,
              uint32_t pa_start, uint32_t pa_last, pte_t *ppte)
 {
-	// Flush the entry only if we're modifying the current address space.
-	if (!curenv || curenv->env_pgdir == pgdir)
-		invlpg(va);
   cprintf("[%08x -- %08x] => [%08x -- %08x] (%d pages, %c%c)\n",
           va_start, va_last + PGSIZE - 1,
           pa_start, pa_last + PGSIZE - 1,
@@ -870,6 +846,7 @@ check_page_free_list(bool only_low_memory)
 
 	assert(nfree_basemem > 0);
 	assert(nfree_extmem > 0);
+  cprintf("check_page_free_list(%d) succeeded!\n", only_low_memory);
 }
 
 //
