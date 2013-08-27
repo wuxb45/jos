@@ -13,3 +13,7 @@
 /lab?/
 /sol?/
 /conf/lab.mk
+tags
+*~
+*.o
+*.swp
