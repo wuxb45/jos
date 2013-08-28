@@ -212,12 +212,12 @@ mem_init(void)
 	//       overwrite memory.  Known as a "guard page".
 	//     Permissions: kernel RW, user NONE
 	// Your code goes here:
-  boot_map_region(kern_pgdir, (KSTACKTOP-KSTKSIZE),
-                  KSTKSIZE, PADDR(bootstack), PTE_W);
-  uintptr_t va;
-  for (va = KSTACKTOP - PTSIZE; va < PTSIZE - KSTKSIZE; va += PGSIZE) {
-    page_remove(kern_pgdir, (void *)va);
-  }
+  //boot_map_region(kern_pgdir, (KSTACKTOP-KSTKSIZE),
+  //                KSTKSIZE, PADDR(bootstack), PTE_W);
+  //uintptr_t va;
+  //for (va = KSTACKTOP - PTSIZE; va < PTSIZE - KSTKSIZE; va += PGSIZE) {
+  //  page_remove(kern_pgdir, (void *)va);
+  //}
 
 	//////////////////////////////////////////////////////////////////////
 	// Map all of physical memory at KERNBASE.
@@ -256,7 +256,6 @@ mem_init(void)
 	lcr3(PADDR(kern_pgdir));
 
 	check_page_free_list(0);
-  panic("xx");
 
 	// entry.S set the really important flags in cr0 (including enabling
 	// paging).  Here we configure the rest of the flags that we care about.
@@ -297,7 +296,12 @@ mem_init_mp(void)
 	//     Permissions: kernel RW, user NONE
 	//
 	// LAB 4: Your code here:
-
+  size_t i;
+  for (i = 0; i < NCPU; i++) {
+    uintptr_t stkpa = PADDR((void *)(&percpu_kstacks[i][0]));
+    const uintptr_t stkv = KSTACKTOP - (i * (KSTKSIZE + KSTKGAP)) - KSTKSIZE;
+    boot_map_region(kern_pgdir, stkv, KSTKSIZE, stkpa, PTE_W);
+  }
 }
 
 // --------------------------------------------------------------
@@ -469,17 +473,21 @@ boot_map_region(pde_t * pgdir, uintptr_t va, size_t size, physaddr_t pa,
                 int perm)
 {
   // Fill this function in
-  size_t offset = 0;
+  uintptr_t vaalign = va & (~0xfff);
+  uintptr_t paalign = pa & (~0xfff);
+  const uintptr_t endpg = (va + size - 1) & (~0xfff);
   pte_t *ppte;
   if (va < UTOP) {
     return;
   }
-  while (offset < size) { //assume size is aligned
-    ppte = pgdir_walk(pgdir, (void *)va + offset, 1);
-    if (ppte) {
-      *ppte = PTE_ADDR(pa + offset) | perm | PTE_P;
-    }
-    offset += PGSIZE;
+  while (vaalign <= endpg) {
+    ppte = pgdir_walk(pgdir, (void *)vaalign, 1);
+    if (NULL == ppte) { break; }
+    *ppte = PTE_ADDR(paalign) | perm | PTE_P;
+
+    if ((vaalign + PGSIZE) < vaalign) break;
+    vaalign += PGSIZE;
+    paalign += PGSIZE;
   }
 }
 
