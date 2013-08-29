@@ -8,7 +8,7 @@
 #include <inc/x86.h>
 
 #include <kern/env.h>
-
+#include <kern/cpu.h>
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
@@ -34,6 +34,7 @@ static struct Command commands[] = {
   {"dumpva", "Dump data in Virtual Address", mon_dumpva},
   {"resume", "Resume from Break Point", mon_resume},
   {"step", "Stepping one instruction", mon_step},
+  {"cpuid", "Get CPUID of monitor", mon_cpuid},
 };
 
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
@@ -274,6 +275,13 @@ mon_step(int argc, char ** argv, struct Trapframe *tf)
     cprintf("step: no curenv!\n");
     return 0;
   }
+}
+
+int
+mon_cpuid(int argc, char ** argv, struct Trapframe *tf)
+{
+  cprintf("CPUID: %d\n", cpunum());
+  return 0;
 }
 
 /***** Kernel monitor command interpreter *****/

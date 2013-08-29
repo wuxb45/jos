@@ -423,12 +423,9 @@ env_create(uint8_t *binary, size_t size, enum EnvType type)
   if (r != 0) {
     panic("Cannot create env_create(): %e\n", r);
   }
-  //paging_smart_scan(e->env_pgdir);
-  //panic("env_create");
   load_icode(e, binary, size);
-  e->env_type = ENV_TYPE_USER;
+  e->env_type = type;
   //paging_smart_scan(e->env_pgdir);
-  //panic("end of env_create()");
 }
 
 //
@@ -564,9 +561,9 @@ env_run(struct Env *e)
   curenv = e;
   curenv->env_status = ENV_RUNNING;
   curenv->env_runs += 1;
+  unlock_kernel();
   lcr3(PADDR(curenv->env_pgdir));
   env_pop_tf(&(curenv->env_tf));
 
 	panic("env_run not yet implemented");
 }
-

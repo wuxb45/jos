@@ -145,7 +145,7 @@ trap_init_percpu(void)
 
 	// Setup a TSS so that we get the right stack
 	// when we trap to the kernel.
-	cpu_ts->ts_esp0 = KSTACKTOP;
+	cpu_ts->ts_esp0 = KSTACKTOP - (cpuid * (KSTKSIZE + KSTKGAP));
 	cpu_ts->ts_ss0 = GD_KD;
 
 	// Initialize the TSS slot of the gdt.
@@ -278,6 +278,7 @@ trap(struct Trapframe *tf)
 		// serious kernel work.
 		// LAB 4: Your code here.
 		assert(curenv);
+    lock_kernel();
 
 		// Garbage collect if current enviroment is a zombie
 		if (curenv->env_status == ENV_DYING) {

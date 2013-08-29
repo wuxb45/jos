@@ -3,6 +3,7 @@
 #include <kern/env.h>
 #include <kern/pmap.h>
 #include <kern/monitor.h>
+#include <kern/spinlock.h>
 
 
 // Choose a user environment to run and run it.
@@ -29,6 +30,30 @@ sched_yield(void)
 	// below to switch to this CPU's idle environment.
 
 	// LAB 4: Your code here.
+  //cprintf("sched %d\n", cpunum());
+  //for (i = 0; i < 11; i++) {
+  //  cprintf("%d %d |", envs[i].env_status, envs[i].env_type);
+  //}
+  struct Env *cur = curenv;
+  int envid;
+  int yield;
+  if (cur) {
+    envid = cur - envs;
+    yield = envid;
+  } else {
+    envid = 0;
+    yield = -1;
+  }
+  const int envend = envid;
+  if ((++envid) == NENV) envid = 0;
+  while (envid != envend) {
+    if ((envs[envid].env_status == ENV_RUNNABLE) &&
+        (envs[envid].env_type != ENV_TYPE_IDLE)) {
+      //cprintf("[%d] yields [%d], runs [%d]\n", cpunum(), yield, envid);
+      env_run(&envs[envid]); // never return;
+    }
+    if ((++envid) == NENV) envid = 0;
+  }
 
 	// For debugging and testing purposes, if there are no
 	// runnable environments other than the idle environments,
@@ -41,12 +66,14 @@ sched_yield(void)
 	}
 	if (i == NENV) {
 		cprintf("No more runnable environments!\n");
+    unlock_kernel();
 		while (1)
 			monitor(NULL);
 	}
 
 	// Run this CPU's idle environment when nothing else is runnable.
 	idle = &envs[cpunum()];
+  //cprintf("[%d] runs idle\n", cpunum());
 	if (!(idle->env_status == ENV_RUNNABLE || idle->env_status == ENV_RUNNING))
 		panic("CPU %d: No idle environment!", cpunum());
 	env_run(idle);
