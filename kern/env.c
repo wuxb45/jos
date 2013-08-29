@@ -15,6 +15,12 @@
 #include <kern/cpu.h>
 #include <kern/spinlock.h>
 
+static struct spinlock env_lock = {
+#ifdef DEBUG_SPINLOCK
+  .name = "env_lock"
+#endif
+};
+
 struct Env *envs = NULL;		// All environments
 static struct Env *env_free_list;	// Free environment list
 					// (linked by Env->env_link)
@@ -120,6 +126,7 @@ env_init(void)
 	// Set up envs array
 	// LAB 3: Your code here.
   size_t i;
+  spin_lock(&env_lock);
   env_free_list = &envs[0];
   for (i = 0; i < NENV; i++) {
     envs[i].env_status = ENV_FREE;
@@ -128,6 +135,7 @@ env_init(void)
   }
   envs[NENV-1].env_link = NULL;
 
+  spin_unlock(&env_lock);
 	// Per-CPU part of the initialization
 	env_init_percpu();
 }
@@ -222,12 +230,17 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	int r;
 	struct Env *e;
 
-	if (!(e = env_free_list))
+  spin_lock(&env_lock);
+	if (!(e = env_free_list)) {
+    spin_unlock(&env_lock);
 		return -E_NO_FREE_ENV;
+  }
 
 	// Allocate and set up the page directory for this environment.
-	if ((r = env_setup_vm(e)) < 0)
+	if ((r = env_setup_vm(e)) < 0) {
+    spin_unlock(&env_lock);
 		return r;
+  }
 
 	// Generate an env_id for this environment.
 	generation = (e->env_id + (1 << ENVGENSHIFT)) & ~(NENV - 1);
@@ -275,6 +288,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	env_free_list = e->env_link;
 	*newenv_store = e;
 
+  spin_unlock(&env_lock);
 	cprintf("[%08x] new env %08x\n", curenv ? curenv->env_id : 0, e->env_id);
 	return 0;
 }
@@ -477,8 +491,10 @@ env_free(struct Env *e)
 
 	// return the environment to the free list
 	e->env_status = ENV_FREE;
+  spin_lock(&env_lock);
 	e->env_link = env_free_list;
 	env_free_list = e;
+  spin_unlock(&env_lock);
 }
 
 //

@@ -292,4 +292,30 @@ xchg(volatile uint32_t *addr, uint32_t newval)
 	return result;
 }
 
+static inline void atom_inc(volatile uint32_t *num)
+{
+  __asm__ __volatile__ ( "lock incl %0" : "=m" (*num));
+}
+
+static inline void atom_dec(volatile uint32_t *num)
+{
+  __asm__ __volatile__ ( "lock decl %0" : "=m" (*num));
+}
+
+static inline void atom_add(volatile uint32_t *m, uint32_t inval)
+{
+  register uint32_t val = inval;
+  __asm__ __volatile__ ( "lock addl %1,%0"
+    : "=m" (*m), "=r" (val)
+    : "1" (inval));
+}
+
+static inline void atom_sub(volatile uint32_t *m, uint32_t inval)
+{
+  register uint32_t val = inval;
+  __asm__ __volatile__ ( "lock subl %1,%0"
+    : "=m" (*m), "=r" (val)
+    : "1" (inval));
+}
+
 #endif /* !JOS_INC_X86_H */

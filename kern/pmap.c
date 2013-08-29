@@ -5,6 +5,7 @@
 #include <inc/error.h>
 #include <inc/string.h>
 #include <inc/assert.h>
+#include <inc/x86.h>
 
 #include <kern/pmap.h>
 #include <kern/kclock.h>
@@ -402,7 +403,8 @@ page_free(struct Page *pp)
 void
 page_decref(struct Page *pp)
 {
-  if (--pp->pp_ref == 0)
+  atom_dec(&(pp->pp_ref));
+  if (pp->pp_ref == 0)
     page_free(pp);
 }
 
@@ -533,7 +535,8 @@ page_unfree(struct Page *pp) {
 
 void
 page_incref(struct Page *pp) {
-  pp->pp_ref++;
+  //pp->pp_ref++;
+  atom_inc(&(pp->pp_ref));
   if (pp->pp_ref == 1) {
     page_unfree(pp);
   }
