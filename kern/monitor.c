@@ -14,8 +14,14 @@
 #include <kern/kdebug.h>
 #include <kern/trap.h>
 #include <kern/pmap.h>
+#include <kern/spinlock.h>
 
 #define CMDBUF_SIZE	80      // enough for one VGA text line
+static struct spinlock monitor_lock = {
+#ifdef DEBUG_SPINLOCK
+	.name = "monitor_lock",
+#endif
+};
 
 struct Command {
   const char *name;
@@ -83,10 +89,11 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
   ebp = read_ebp();
   while (ebp) {
     // get debuginfo
-    (void)debuginfo_eip((uintptr_t) eip, &info);
+    const int r = debuginfo_eip((uintptr_t) eip, &info);
+    if (r != 0) return 0;
     nargs = info.eip_fn_narg;
     // print stack info
-    cprintf("  ebp %08x  eip %08x  args", ebp, eip);
+    cprintf("  ebp %08x  eip %08x  args[%d] ", ebp, eip, nargs);
     for (i = 0; i < nargs; i++) {
       arg = *(((uint32_t *) ebp) + 2 + i);
       cprintf(" %08x", arg);
@@ -332,9 +339,11 @@ void
 monitor(struct Trapframe *tf)
 {
   char *buf;
+  spin_lock(&monitor_lock);
 
   cprintf("Welcome to the JOS kernel monitor!\n");
   cprintf("Type 'help' for a list of commands.\n");
+  cprintf("CPUID: %d\n", cpunum());
 
 	if (tf != NULL)
 		print_trapframe(tf);
@@ -345,6 +354,7 @@ monitor(struct Trapframe *tf)
       if (runcmd(buf, tf) < 0)
         break;
   }
+  spin_unlock(&monitor_lock);
 }
 
 // return EIP of caller.

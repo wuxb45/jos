@@ -86,7 +86,8 @@ TRAPHANDLER_NOEC(t_syscall, T_SYSCALL);
   movw %ax, %ds;
   movw %ax, %es;
   // pushl %esp to pass a pointer to the Trapframe as an argument to trap()
-  pushl %esp
+  pushl %esp;
+  movl $0, %ebp;
   // call trap (can trap ever return?)
   call trap;
 spin_alltraps:
