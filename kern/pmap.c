@@ -592,6 +592,24 @@ page_insert(pde_t * pgdir, struct Page *pp, void *va, int perm)
   }
 }
 
+// alloc and map a page at va.
+// RETURNS:
+//   0 on success
+//   -E_NO_MEM, if no enough memory for the page or the pde.
+int
+page_alloc_map(pde_t *pgdir, void *va, int perm)
+{
+  struct Page *p = page_alloc(ALLOC_ZERO);
+  if (p == NULL) { return -E_NO_MEM; }
+
+  const int rr = page_insert(pgdir, p, va, perm);
+  if (rr != 0) {
+    page_free(p);
+    return rr;
+  }
+  return 0;
+}
+
 //
 // Return the page mapped at virtual address 'va'.
 // If pte_store is not zero, then we store in it the address
