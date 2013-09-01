@@ -476,9 +476,9 @@ boot_map_region(pde_t * pgdir, uintptr_t va, size_t size, physaddr_t pa,
                 int perm)
 {
   // Fill this function in
-  uintptr_t vaalign = va & (~0xfff);
-  uintptr_t paalign = pa & (~0xfff);
-  const uintptr_t endpg = (va + size - 1) & (~0xfff);
+  uintptr_t vaalign = PTE_ADDR(va);
+  uintptr_t paalign = PTE_ADDR(pa);
+  const uintptr_t endpg = PTE_ADDR(va + size - 1);
   pte_t *ppte;
   if (va < UTOP) {
     return;
@@ -577,10 +577,11 @@ page_insert(pde_t * pgdir, struct Page *pp, void *va, int perm)
   ppte = pgdir_walk(pgdir, va, 1);
   if (ppte) {
     if ((*ppte) & PTE_P) { // exists
-      if (page2kva(pp) != vaalign) {
+      //if (page2kva(pp) != vaalign) {
+      if (PTE_ADDR(*ppte) != page2pa(pp)) {
         // remove map and remap
-        page_remove(pgdir, va);
         page_incref(pp);
+        page_remove(pgdir, va);
       }
       tlb_invalidate(pgdir, va);
     } else {
