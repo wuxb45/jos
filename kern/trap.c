@@ -195,6 +195,18 @@ print_trapframe(struct Trapframe *tf)
 }
 
 void
+print_utrapframe(struct UTrapframe *utf)
+{
+	cprintf("UTRAP frame at %p from CPU %d\n", utf, cpunum());
+  cprintf("   va  0x%08x\n", utf->utf_fault_va);
+  cprintf("  err  0x%08x\n", utf->utf_err);
+	print_regs(&utf->utf_regs);
+  cprintf("  eip  0x%08x\n", utf->utf_eip);
+  cprintf("  flag 0x%08x\n", utf->utf_eflags);
+  cprintf("  esp  0x%08x\n", utf->utf_esp);
+}
+
+void
 print_regs(struct PushRegs *regs)
 {
 	cprintf("  edi  0x%08x\n", regs->reg_edi);
@@ -375,6 +387,7 @@ page_fault_handler(struct Trapframe *tf)
   // prepare UXSTACK -> setup ex_esp
   const uintptr_t va_ux = UXSTACKTOP - PGSIZE;
   uintptr_t ux_esp;
+  size_t sz = 0;
   struct Page *pg_ux;
   pte_t *ppte_ux;
   if (PTE_ADDR(tf->tf_esp) != va_ux) {
@@ -386,6 +399,7 @@ page_fault_handler(struct Trapframe *tf)
     }
   } else {
     ux_esp = tf->tf_esp - sizeof(uint32_t);
+    sz += sizeof(uint32_t);
   }
 
   pg_ux = page_lookup(curenv->env_pgdir, (void *)va_ux, &ppte_ux);
@@ -393,10 +407,13 @@ page_fault_handler(struct Trapframe *tf)
 
   // check space for UTrapframe
   ux_esp -= sizeof(struct UTrapframe);
-  user_mem_assert(curenv, (const void *)ux_esp, sizeof(struct UTrapframe), PTE_U | PTE_W);
+  sz += sizeof(struct UTrapframe);
+  const uintptr_t ux_utf = ux_esp;
+
+  user_mem_assert(curenv, (const void *)ux_esp, sz, PTE_U | PTE_W);
 
   // make UTrapframe
-  const uintptr_t uxp = ((uintptr_t)page2kva(pg_ux)) | PGOFF(ux_esp);
+  const uintptr_t uxp = ((uintptr_t)page2kva(pg_ux)) | PGOFF(ux_utf);
   struct UTrapframe *utf = (struct UTrapframe *)uxp;
   utf->utf_fault_va = fault_va;
   utf->utf_err = curenv->env_tf.tf_err;
@@ -405,11 +422,10 @@ page_fault_handler(struct Trapframe *tf)
   utf->utf_eflags = curenv->env_tf.tf_eflags;
   utf->utf_esp = curenv->env_tf.tf_esp;
 
-  // make it 'call' to the trap frame
-  //uxp -= sizeof(uint32_t);
-  //*((uint32_t *)uxp) = curenv->env_tf.tf_eip;
-  curenv->env_tf.tf_eip = (uint32_t)curenv->env_pgfault_upcall;
   curenv->env_tf.tf_esp = ux_esp;
+
+  // make it 'call' to the trap frame
+  curenv->env_tf.tf_eip = (uint32_t)curenv->env_pgfault_upcall;
   env_run(curenv);
 }
 
