@@ -42,6 +42,7 @@ static struct Command commands[] = {
   {"step", "Stepping one instruction", mon_step},
   {"cpuid", "Get CPUID of monitor", mon_cpuid},
   {"pgscan", "Scanning Page Mapping of Current Env", mon_pgscan},
+  {"kscan", "Scanning Page Mapping of Kernel", mon_kscan},
 };
 
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
@@ -304,6 +305,12 @@ mon_pgscan(int argc, char ** argv, struct Trapframe *tf)
   return 0;
 }
 
+int
+mon_kscan(int argc, char ** argv, struct Trapframe *tf)
+{
+  paging_smart_scan(kern_pgdir);
+  return 0;
+}
 /***** Kernel monitor command interpreter *****/
 
 #define WHITESPACE "\t\r\n "

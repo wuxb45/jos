@@ -26,5 +26,6 @@ DECLARE_MON(resume);
 DECLARE_MON(step);
 DECLARE_MON(cpuid);
 DECLARE_MON(pgscan);
+DECLARE_MON(kscan);
 
 #endif                          // !JOS_KERN_MONITOR_H
