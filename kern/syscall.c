@@ -180,16 +180,7 @@ sys_page_alloc(envid_t envid, void *va, int perm)
   if (r != 0) { return r; }
   if ((uintptr_t)va >= UTOP) { return -E_INVAL; }
   if ((perm & (~PTE_SYSCALL)) != 0) { return -E_INVAL; }
-
-  struct Page *p = page_alloc(ALLOC_ZERO);
-  if (p == NULL) { return -E_NO_MEM; }
-
-  const int rr = page_insert(e->env_pgdir, p, va, perm | PTE_U);
-  if (rr != 0) {
-    page_free(p);
-    return rr;
-  }
-  return 0;
+  return page_alloc_map(e->env_pgdir, va, perm | PTE_U);
 }
 
 // Map the page of memory at 'srcva' in srcenvid's address space

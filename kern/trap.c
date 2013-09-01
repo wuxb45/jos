@@ -324,7 +324,7 @@ page_fault_handler(struct Trapframe *tf)
 
 	// LAB 3: Your code here.
 	if (tf->tf_cs == GD_KT) {
-    cprintf("[%08x] user fault va %08x ip %08x\n",
+    cprintf("[%08x] Kernel Page Fault: va %08x ip %08x\n",
       curenv->env_id, fault_va, tf->tf_eip);
 		panic("Page Fault in kernel\n");
   }
@@ -361,12 +361,56 @@ page_fault_handler(struct Trapframe *tf)
 	//   (the 'tf' variable points at 'curenv->env_tf').
 
 	// LAB 4: Your code here.
+  // check handler
+  void * uhandler = curenv->env_pgfault_upcall;
+  if (uhandler == NULL) {
+    // Destroy the environment that caused the fault.
+    cprintf("[%08x] user fault va %08x ip %08x\n",
+      curenv->env_id, fault_va, tf->tf_eip);
+    print_trapframe(tf);
+    env_destroy(curenv);
+    return;
+  }
 
-	// Destroy the environment that caused the fault.
-	cprintf("[%08x] user fault va %08x ip %08x\n",
-		curenv->env_id, fault_va, tf->tf_eip);
-	print_trapframe(tf);
-	env_destroy(curenv);
+  // prepare UXSTACK -> setup ex_esp
+  const uintptr_t va_ux = UXSTACKTOP - PGSIZE;
+  uintptr_t ux_esp;
+  struct Page *pg_ux;
+  pte_t *ppte_ux;
+  if (PTE_ADDR(tf->tf_esp) != va_ux) {
+    ux_esp = UXSTACKTOP;
+    pg_ux = page_lookup(curenv->env_pgdir, (void *)va_ux, &ppte_ux);
+    if (pg_ux == NULL) {
+      const int rp = page_alloc_map(curenv->env_pgdir, (void *)va_ux, PTE_U | PTE_W);
+      if (rp != 0) { env_destroy(curenv); return; }
+    }
+  } else {
+    ux_esp = tf->tf_esp - sizeof(uint32_t);
+  }
+
+  pg_ux = page_lookup(curenv->env_pgdir, (void *)va_ux, &ppte_ux);
+  if (pg_ux == NULL) { return; }
+
+  // check space for UTrapframe
+  ux_esp -= sizeof(struct UTrapframe);
+  user_mem_assert(curenv, (const void *)ux_esp, sizeof(struct UTrapframe), PTE_U | PTE_W);
+
+  // make UTrapframe
+  const uintptr_t uxp = ((uintptr_t)page2kva(pg_ux)) | (ux_esp & 0xfff);
+  struct UTrapframe *utf = (struct UTrapframe *)uxp;
+  utf->utf_fault_va = fault_va;
+  utf->utf_err = curenv->env_tf.tf_err;
+  utf->utf_regs = curenv->env_tf.tf_regs;
+  utf->utf_eip = curenv->env_tf.tf_eip;
+  utf->utf_eflags = curenv->env_tf.tf_eflags;
+  utf->utf_esp = curenv->env_tf.tf_esp;
+
+  // make it 'call' to the trap frame
+  //uxp -= sizeof(uint32_t);
+  //*((uint32_t *)uxp) = curenv->env_tf.tf_eip;
+  curenv->env_tf.tf_eip = (uint32_t)curenv->env_pgfault_upcall;
+  curenv->env_tf.tf_esp = ux_esp;
+  env_run(curenv);
 }
 
 void

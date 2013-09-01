@@ -11,6 +11,7 @@
 #include <kern/kclock.h>
 #include <kern/env.h>
 #include <kern/cpu.h>
+#include <kern/monitor.h>
 
 // These variables are set by i386_detect_memory()
 size_t npages;                  // Amount of physical memory (in pages)
@@ -770,7 +771,7 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm)
   uintptr_t p0, plast;
   //p0 = PTEADDR(va);
   p0 = (uintptr_t)va;
-  plast = PTE_ADDR(((uintptr_t)va)+len);
+  plast = PTE_ADDR(((uintptr_t)va)+(len-1));
   while (PTE_ADDR(p0) <= plast) {
     if (p0 >= ULIM) {
       goto mem_check_error;
