@@ -41,7 +41,7 @@ static struct Command commands[] = {
   {"resume", "Resume from Break Point", mon_resume},
   {"step", "Stepping one instruction", mon_step},
   {"cpuid", "Get CPUID of monitor", mon_cpuid},
-  {"pgscan", "Scanning Page Mapping of Current Env", mon_pgscan},
+  {"uscan", "Scanning Page Mapping of User Env", mon_uscan},
   {"kscan", "Scanning Page Mapping of Kernel", mon_kscan},
 };
 
@@ -294,13 +294,17 @@ mon_cpuid(int argc, char ** argv, struct Trapframe *tf)
 }
 
 int
-mon_pgscan(int argc, char ** argv, struct Trapframe *tf)
+mon_uscan(int argc, char ** argv, struct Trapframe *tf)
 {
-  if (curenv != 0) {
-    pde_t *pgdir = curenv->env_pgdir;
-    paging_smart_scan(pgdir);
+  if (argc < 2) {
+    if (curenv != 0) {
+      pde_t *pgdir = curenv->env_pgdir;
+      paging_smart_scan(pgdir);
+    } else {
+      cprintf("No curenv\n");
+    }
   } else {
-    cprintf("No curenv\n");
+    cprintf("not impl\n");
   }
   return 0;
 }
