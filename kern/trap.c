@@ -396,7 +396,7 @@ page_fault_handler(struct Trapframe *tf)
   user_mem_assert(curenv, (const void *)ux_esp, sizeof(struct UTrapframe), PTE_U | PTE_W);
 
   // make UTrapframe
-  const uintptr_t uxp = ((uintptr_t)page2kva(pg_ux)) | (ux_esp & 0xfff);
+  const uintptr_t uxp = ((uintptr_t)page2kva(pg_ux)) | PGOFF(ux_esp);
   struct UTrapframe *utf = (struct UTrapframe *)uxp;
   utf->utf_fault_va = fault_va;
   utf->utf_err = curenv->env_tf.tf_err;

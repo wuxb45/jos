@@ -629,7 +629,7 @@ page_lookup(pde_t * pgdir, void *va, pte_t ** pte_store)
   // Fill this function in
   pte_t * ppte;
   ppte = pgdir_walk(pgdir, va, 0);
-  if (ppte == NULL) {
+  if (ppte == NULL || (((*ppte) & PTE_P) == 0)) {
     return NULL;
   } else if (pte_store) {
     *pte_store = ppte;
@@ -807,8 +807,10 @@ void
 user_mem_assert(struct Env *env, const void *va, size_t len, int perm)
 {
 	if (user_mem_check(env, va, len, perm | PTE_U) < 0) {
+    const uint32_t erraddr = user_mem_check_addr;
 		cprintf("[%08x] user_mem_check assertion failure for "
-			"va %08x\n", env->env_id, user_mem_check_addr);
+			"va %08x -- %08x\n", env->env_id, erraddr, erraddr+len-1);
+    monitor(NULL);
 		env_destroy(env);	// may not return
 	}
 }
