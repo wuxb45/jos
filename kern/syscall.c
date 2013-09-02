@@ -324,6 +324,12 @@ sys_ipc_recv(void *dstva)
 	return 0;
 }
 
+static void
+sys_paging_scan()
+{
+  paging_smart_scan(curenv->env_pgdir);
+}
+
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
@@ -357,6 +363,9 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
       return sys_page_unmap((envid_t)a1, (void *)a2);
     case SYS_env_set_pgfault_upcall:
       return sys_env_set_pgfault_upcall((envid_t)a1, (void *)a2);
+    case SYS_paging_scan:
+      sys_paging_scan();
+      return 0;
     default:
       return -E_INVAL;
       break;
