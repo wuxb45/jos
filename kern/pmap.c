@@ -682,17 +682,17 @@ tlb_invalidate(pde_t * pgdir, void *va)
 
 static void
 print_region(uint32_t va_start, uint32_t va_last,
-             uint32_t pa_start, uint32_t pa_last, pte_t *ppte)
+             uint32_t pa_start, uint32_t pa_last, pte_t perm)
 {
   cprintf("[%08x -- %08x] => [%08x -- %08x] (%5d pages, %c%c [%c%c%c])\n",
           va_start, va_last + PGSIZE - 1,
           pa_start, pa_last + PGSIZE - 1,
           (pa_last - pa_start) / PGSIZE + 1,
-          ((*ppte) & PTE_W) ? 'W' : ' ',
-          ((*ppte) & PTE_U) ? 'U' : ' ',
-          ((*ppte) & 0x800) ? '+' : ' ',
-          ((*ppte) & 0x400) ? '+' : ' ',
-          ((*ppte) & 0x200) ? '+' : ' ');
+          (perm & PTE_W) ? 'W' : ' ',
+          (perm & PTE_U) ? 'U' : ' ',
+          (perm & 0x800) ? '+' : ' ',
+          (perm & 0x400) ? '+' : ' ',
+          (perm & 0x200) ? '+' : ' ');
 }
 
 // show mapping of all addresses
@@ -700,51 +700,72 @@ print_region(uint32_t va_start, uint32_t va_last,
 void
 paging_smart_scan(pde_t *pgdir)
 {
-  uint32_t pdid = 0, ptid = 0;
   const uint32_t xx = ~0;
-  uint32_t va_start = xx, pa_start = xx;
-  uint32_t va_last = xx, pa_last = xx;
+  uint32_t pdid = 0, ptid = 0;
+  uint32_t va_start = xx, va_last = xx;
+  uint32_t pa_start = xx, pa_last = xx;
+
   uint32_t va_curr, pa_curr;
-  uint32_t perm_last, perm_curr;
+  pte_t perm_curr, perm_last;
   pte_t * ppte;
+
   while((pdid < NPDENTRIES) && (ptid < NPTENTRIES)) {
+    // update curr info
     va_curr = (uint32_t)PGADDR(pdid, ptid, 0);
     pa_curr = check_va2pa(pgdir, va_curr);
+    ppte = pgdir_walk(pgdir, (void *)va_curr, 0);
+    if (ppte == NULL) {
+      // skip PD
+      if (va_start != xx) {
+        print_region(va_start, va_last, pa_start, pa_last, perm_last);
+        // clear start
+        va_start = va_last = xx;
+        pa_start = pa_last = xx;
+        perm_last = 0;
+      }
+      pdid++;
+      ptid=0;
+      continue;
+    }
+    perm_curr = (*ppte) & PTE_SYSCALL & (pgdir[pdid] | (~(PTE_W | PTE_U)));
 
-    if (pa_curr == xx) { // stop valid mappings
+    // stop mapping
+    if (pa_curr == xx) {
       if (va_start != xx) {
         // print region
-        print_region(va_start, va_last, pa_start, pa_last, ppte);
+        print_region(va_start, va_last, pa_start, pa_last, perm_last);
         // clear start
         va_start = va_last = xx;
         pa_start = pa_last = xx;
       }
     } else { // has mapping here
       if (va_last != xx) {// not first mapping
-        if ((pa_last + PGSIZE) != pa_curr) { // non-continuous
+        // non-continuous
+        if (((pa_last + PGSIZE) != pa_curr) || (perm_curr != perm_last)) {
           //print previous region
-          print_region(va_start, va_last, pa_start, pa_last, ppte);
+          print_region(va_start, va_last, pa_start, pa_last, perm_last);
+          //restart
           va_start = va_curr;
           pa_start = pa_curr;
-          ppte = pgdir_walk(pgdir, (void *)va_curr, 0);
+        } else {
         }
       } else { // first mapping
         va_start = va_curr;
         pa_start = pa_curr;
-        ppte = pgdir_walk(pgdir, (void *)va_curr, 0);
       }
       va_last = va_curr;
       pa_last = pa_curr;
     }
 
+    perm_last = perm_curr;
     ptid++;
     if (ptid == NPTENTRIES) {
       ptid=0;
       pdid++;
     }
   }
-  if (va_last != xx) {
-    print_region(va_start, va_last, pa_start, pa_last, ppte);
+  if (va_last != xx) { // print last page
+    print_region(va_start, va_last, pa_start, pa_last, perm_last);
   }
 }
 
