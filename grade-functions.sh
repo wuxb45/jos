@@ -56,7 +56,7 @@ run () {
 		# Find the address of the kernel $brkfn function,
 		# which is typically what the kernel monitor uses to
 		# read commands interactively.
-		brkaddr=`grep " $brkfn\$" obj/kern/kernel.sym | sed -e's/ .*$//g'`
+		brkaddr=`grep " $brkfn\$" /tmp/obj/kern/kernel.sym | sed -e's/ .*$//g'`
 
 		(
 			echo "target remote localhost:$gdbport"
@@ -134,8 +134,8 @@ fail () {
 # Usage: runtest <tagname> <defs> <check fn> <check args...>
 runtest () {
 	perl -e "print '$1: '"
-	rm -f obj/kern/init.o obj/kern/kernel obj/kern/kernel.img 
-	[ "$preservefs" = y ] || rm -f obj/fs/fs.img
+	rm -f /tmp/obj/kern/init.o /tmp/obj/kern/kernel /tmp/obj/kern/kernel.img
+	[ "$preservefs" = y ] || rm -f /tmp/obj/fs/fs.img
 	if $verbose
 	then
 		echo "$make $2... "
@@ -143,7 +143,7 @@ runtest () {
 	$make $2 >$out
 	if [ $? -ne 0 ]
 	then
-		rm -f obj/kern/init.o
+		rm -f /tmp/obj/kern/init.o
 		echo $make $2 failed 
 		exit 1
 	fi
@@ -151,7 +151,7 @@ runtest () {
 	# a result, 'make qemu' will run the last graded test and
 	# 'make clean; make qemu' will run the user-specified
 	# environment.  Remove our weird init.o to fix this.
-	rm -f obj/kern/init.o
+	rm -f /tmp/obj/kern/init.o
 	run
 
 	# Give qemu some more time to run (for asynchronous mode).

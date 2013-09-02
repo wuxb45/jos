@@ -1,6 +1,6 @@
 #!/bin/sh
 
-qemuopts="-hda obj/kern/kernel.img"
+qemuopts="-hda /tmp/obj/kern/kernel.img"
 . ./grade-functions.sh
 
 
@@ -67,19 +67,19 @@ runtest1 faultalloc \
 	".000010$E1. free env 000010$E1"
 
 runtest1 faultallocbad \
-	".000010$E1. user_mem_check assertion failure for va deadbeef" \
+	".000010$E1. user_mem_check assertion failure for va deadbeef.*" \
 	".000010$E1. free env 000010$E1" 
 
 runtest1 faultnostack \
-	".000010$E1. user_mem_check assertion failure for va eebfff.." \
+	".000010$E1. user_mem_check assertion failure for va eebfff...*" \
 	".000010$E1. free env 000010$E1"
 
 runtest1 faultbadhandler \
-	".000010$E1. user_mem_check assertion failure for va (deadb|eebfe)..." \
+	".000010$E1. user_mem_check assertion failure for va (deadb|eebfe)....*" \
 	".000010$E1. free env 000010$E1"
 
 runtest1 faultevilhandler \
-	".000010$E1. user_mem_check assertion failure for va (f0100|eebfe)..." \
+	".000010$E1. user_mem_check assertion failure for va (f0100|eebfe)....*" \
 	".000010$E1. free env 000010$E1"
 
 runtest1 forktree \
