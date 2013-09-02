@@ -794,7 +794,6 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
 	// LAB 3: Your code here.
   uintptr_t p0, plast;
-  //p0 = PTEADDR(va);
   p0 = (uintptr_t)va;
   plast = PTE_ADDR(((uintptr_t)va)+(len-1));
   while (PTE_ADDR(p0) <= plast) {
@@ -834,7 +833,6 @@ user_mem_assert(struct Env *env, const void *va, size_t len, int perm)
     const uint32_t erraddr = user_mem_check_addr;
 		cprintf("[%08x] user_mem_check assertion failure for "
 			"va %08x -- %08x\n", env->env_id, erraddr, erraddr+len-1);
-    monitor(NULL);
 		env_destroy(env);	// may not return
 	}
 }

@@ -392,18 +392,15 @@ page_fault_handler(struct Trapframe *tf)
   pte_t *ppte_ux;
   if (PTE_ADDR(tf->tf_esp) != va_ux) {
     ux_esp = UXSTACKTOP;
-    pg_ux = page_lookup(curenv->env_pgdir, (void *)va_ux, &ppte_ux);
-    if (pg_ux == NULL) {
-      const int rp = page_alloc_map(curenv->env_pgdir, (void *)va_ux, PTE_U | PTE_W);
-      if (rp != 0) { env_destroy(curenv); return; }
-    }
+    //pg_ux = page_lookup(curenv->env_pgdir, (void *)va_ux, &ppte_ux);
+    //if (pg_ux == NULL) {
+      //const int rp = page_alloc_map(curenv->env_pgdir, (void *)va_ux, PTE_U | PTE_W);
+      //if (rp != 0) { env_destroy(curenv); return; }
+    //}
   } else {
     ux_esp = tf->tf_esp - sizeof(uint32_t);
     sz += sizeof(uint32_t);
   }
-
-  pg_ux = page_lookup(curenv->env_pgdir, (void *)va_ux, &ppte_ux);
-  if (pg_ux == NULL) { return; }
 
   // check space for UTrapframe
   ux_esp -= sizeof(struct UTrapframe);
@@ -411,6 +408,9 @@ page_fault_handler(struct Trapframe *tf)
   const uintptr_t ux_utf = ux_esp;
 
   user_mem_assert(curenv, (const void *)ux_esp, sz, PTE_U | PTE_W);
+
+  pg_ux = page_lookup(curenv->env_pgdir, (void *)va_ux, &ppte_ux);
+  if (pg_ux == NULL) { panic("no page on UXSTACK"); }
 
   // make UTrapframe
   const uintptr_t uxp = ((uintptr_t)page2kva(pg_ux)) | PGOFF(ux_utf);
