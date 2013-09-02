@@ -264,9 +264,7 @@ mon_dumppa(int argc, char ** argv, struct Trapframe *tf)
 int
 mon_resume(int argc, char ** argv, struct Trapframe *tf)
 {
-  //curenv = tf;
   if (curenv) {
-    //curenv->env_tf.tf_eip++;
     return -1;
   } else {
     cprintf("resume: no curenv!\n");
@@ -304,7 +302,14 @@ mon_uscan(int argc, char ** argv, struct Trapframe *tf)
       cprintf("No curenv\n");
     }
   } else {
-    cprintf("not impl\n");
+    const uint32_t id = strtol(argv[1], NULL, 16);
+    struct Env * env;
+    const int re = envid2env(id, &env, 0);
+    if (re != 0) {
+      cprintf("Bad envid\n");
+      return 0;
+    }
+    paging_smart_scan(env->env_pgdir);
   }
   return 0;
 }
