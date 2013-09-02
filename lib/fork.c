@@ -33,7 +33,7 @@ print_utrapframe(struct UTrapframe *utf)
 }
 
 
-static pte_t
+static inline pte_t
 get_ro_pte(void *va)
 {
   const pde_t *ppde = (pde_t *)vpd;
@@ -111,8 +111,6 @@ pgfault(struct UTrapframe *utf)
 static int
 duppage(envid_t envid, unsigned pn)
 {
-	int r;
-
 	// LAB 4: Your code here.
   void *va = (void *)(pn * PGSIZE);
   pte_t pte = get_ro_pte(va);
@@ -120,20 +118,35 @@ duppage(envid_t envid, unsigned pn)
     return 0;
   }
 
-  pte &= PTE_SYSCALL;
-  if (pte & (PTE_W | PTE_COW)) {
-    pte &= (~PTE_W);
-    pte |= PTE_COW;
+  uint32_t perm = pte & PTE_SYSCALL;
+  if (perm & (PTE_W | PTE_COW)) {
+    perm &= (~PTE_W);
+    perm |= PTE_COW;
   }
 
   // remap child
-  const int rmc = sys_page_map(thisenv->env_id, va, envid, va, pte);
+  const int rmc = sys_page_map(thisenv->env_id, va, envid, va, perm);
   if (rmc != 0) { panic("fork(): cannot map page at %08x for child", va); }
 
   // remap myself
-  const int rmp = sys_page_map(thisenv->env_id, va, thisenv->env_id, va, pte);
+  const int rmp = sys_page_map(thisenv->env_id, va, thisenv->env_id, va, perm);
   if (rmp != 0) { panic("fork(): cannot map page at %08x for parent", va); }
 	return 0;
+}
+
+static int
+duppage_share(envid_t envid, unsigned pn)
+{
+  void *va = (void *)(pn * PGSIZE);
+  pte_t pte = get_ro_pte(va);
+  if ((pte & PTE_P) == 0) {
+    return 0;
+  }
+
+  const uint32_t perm = pte & PTE_SYSCALL;
+  const int rm = sys_page_map(thisenv->env_id, va, envid, va, perm);
+  if (rm != 0) { panic("fork(): cannot map page at %08x for child", va); }
+  return 0;
 }
 
 //
@@ -199,6 +212,43 @@ fork(void)
 int
 sfork(void)
 {
-	panic("sfork not implemented");
-	return -E_INVAL;
+  // setup handler
+  const envid_t pid = sys_getenvid();
+  set_pgfault_handler(pgfault);
+
+  // fork
+  const envid_t cid = sys_exofork();
+  if (cid == 0) { // child
+    const envid_t id = sys_getenvid();
+    thisenv = &envs[ENVX(id)];
+    return 0;
+  } else if (cid < 0) {
+    panic("fork(): error on sys_exofork()");
+  }
+
+  // parent
+  // Copy page fault handler to child
+  const int rp = sys_page_alloc(cid, (void *)(UXSTACKTOP - PGSIZE), PTE_W | PTE_U);
+  if (rp != 0) { panic("ERROR on alloc UX for child"); }
+  extern void _pgfault_upcall(void);
+  const int ru = sys_env_set_pgfault_upcall(cid, _pgfault_upcall);
+  if (ru != 0) { panic("ERROR on set _pgfault_upcall for child"); }
+
+  // dup shared mappings
+  const pde_t *ppde = (pde_t *)vpd;
+  uint32_t i,j;
+  for (i = 0; i < NPDENTRIES; i++) {
+    if ((i * PTSIZE) >= UTOP) break;
+    if ((ppde[i] & PTE_P) == 0) continue;
+    for (j = 0; j < NPTENTRIES; j++) {
+      if ((i * PTSIZE + j * PGSIZE) >= (USTACKTOP - PGSIZE)) break;
+      const unsigned pn = (i * NPTENTRIES + j);
+      duppage_share(cid, pn);
+    }
+  }
+  // dup COW stack
+  duppage(cid, (USTACKTOP - PGSIZE) >> PGSHIFT);
+  const int rr = sys_env_set_status(cid, ENV_RUNNABLE);
+  if (rr != 0) { panic("cannot set child as RUNNABLE"); }
+  return cid;
 }
