@@ -84,6 +84,12 @@ extern void t_align();
 extern void t_mchk();
 extern void t_simderr();
 extern void t_syscall();
+extern void t_irq_timer();
+extern void t_irq_kbd();
+extern void t_irq_serial();
+extern void t_irq_spurious();
+extern void t_irq_ide();
+extern void t_irq_error();
 
 void
 trap_init(void)
@@ -91,7 +97,7 @@ trap_init(void)
 	extern struct Segdesc gdt[];
 
 	// LAB 3: Your code here.
-  SETGATE(idt[T_DIVIDE],  1, GD_KT, t_divide,  3);
+  SETGATE(idt[T_DIVIDE],  1, GD_KT, t_divide,  0);
   SETGATE(idt[T_DEBUG],   1, GD_KT, t_debug,   0);
   SETGATE(idt[T_NMI],     1, GD_KT, t_nmi,     0);
   SETGATE(idt[T_BRKPT],   1, GD_KT, t_brkpt,   3);
@@ -102,14 +108,22 @@ trap_init(void)
   SETGATE(idt[T_DBLFLT],  1, GD_KT, t_dblflt,  0);
   SETGATE(idt[T_TSS],     1, GD_KT, t_tss,     0);
   SETGATE(idt[T_SEGNP],   1, GD_KT, t_segnp,   0);
-  SETGATE(idt[T_STACK],   1, GD_KT, t_stack,   3);
-  SETGATE(idt[T_GPFLT],   1, GD_KT, t_gpflt,   3);
-  SETGATE(idt[T_PGFLT],   1, GD_KT, t_pgflt,   3);
+  SETGATE(idt[T_STACK],   1, GD_KT, t_stack,   0);
+  SETGATE(idt[T_GPFLT],   1, GD_KT, t_gpflt,   0);
+  SETGATE(idt[T_PGFLT],   1, GD_KT, t_pgflt,   0);
   SETGATE(idt[T_FPERR],   1, GD_KT, t_fperr,   0);
   SETGATE(idt[T_ALIGN],   1, GD_KT, t_align,   0);
   SETGATE(idt[T_MCHK],    1, GD_KT, t_mchk,    0);
   SETGATE(idt[T_SIMDERR], 1, GD_KT, t_simderr, 0);
   SETGATE(idt[T_SYSCALL], 1, GD_KT, t_syscall, 3);
+
+  SETGATE(idt[IRQ_OFFSET+IRQ_TIMER],    1, GD_KT, t_irq_timer, 0);
+  SETGATE(idt[IRQ_OFFSET+IRQ_KBD],      1, GD_KT, t_irq_kbd, 0);
+  SETGATE(idt[IRQ_OFFSET+IRQ_SERIAL],   1, GD_KT, t_irq_serial, 0);
+  SETGATE(idt[IRQ_OFFSET+IRQ_SPURIOUS], 1, GD_KT, t_irq_spurious, 0);
+  SETGATE(idt[IRQ_OFFSET+IRQ_IDE],      1, GD_KT, t_irq_ide, 0);
+  SETGATE(idt[IRQ_OFFSET+IRQ_ERROR],    1, GD_KT, t_irq_error, 0);
+
 	// Per-CPU setup 
 	trap_init_percpu();
 }
@@ -253,6 +267,10 @@ trap_dispatch(struct Trapframe *tf)
 	// Handle clock interrupts. Don't forget to acknowledge the
 	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
+  if (tf->tf_trapno == (IRQ_OFFSET + IRQ_TIMER)) {
+    lapic_eoi();
+    sched_yield();
+  }
 
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
@@ -260,7 +278,7 @@ trap_dispatch(struct Trapframe *tf)
 		panic("unhandled trap in kernel");
 	else {
 		panic("unhandled trap in user");
-		//env_destroy(curenv);
+		env_destroy(curenv);
 		return;
 	}
 }
@@ -281,8 +299,6 @@ trap(struct Trapframe *tf)
 	// fails, DO NOT be tempted to fix it by inserting a "cli" in
 	// the interrupt path.
 	assert(!(read_eflags() & FL_IF));
-
-	//cprintf("Incoming TRAP frame at %p\n", tf);
 
 	if ((tf->tf_cs & 3) == 3) {
 		// Trapped from user mode.
@@ -392,11 +408,6 @@ page_fault_handler(struct Trapframe *tf)
   pte_t *ppte_ux;
   if (PTE_ADDR(tf->tf_esp) != va_ux) {
     ux_esp = UXSTACKTOP;
-    //pg_ux = page_lookup(curenv->env_pgdir, (void *)va_ux, &ppte_ux);
-    //if (pg_ux == NULL) {
-      //const int rp = page_alloc_map(curenv->env_pgdir, (void *)va_ux, PTE_U | PTE_W);
-      //if (rp != 0) { env_destroy(curenv); return; }
-    //}
   } else {
     ux_esp = tf->tf_esp - sizeof(uint32_t);
     sz += sizeof(uint32_t);
