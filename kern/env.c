@@ -196,6 +196,7 @@ env_setup_vm(struct Env *e)
 	//    - The functions in kern/pmap.h are handy.
 
 	// LAB 3: Your code here.
+  page_incref(p);
   e->env_pgdir = page2kva(p);
   uint32_t pdid = PDX(UTOP);
   for (pdid = PDX(UTOP); pdid < NPDENTRIES; pdid ++) {
@@ -284,7 +285,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	env_free_list = e->env_link;
 	*newenv_store = e;
 
-	cprintf("[%08x] new env %08x\n", curenv ? curenv->env_id : 0, e->env_id);
+	cprintf("%d [%08x] new env %08x\n", cpunum(), curenv ? curenv->env_id : 0, e->env_id);
 	return 0;
 }
 
@@ -453,7 +454,7 @@ env_free(struct Env *e)
 		lcr3(PADDR(kern_pgdir));
 
 	// Note the environment's demise.
-	cprintf("[%08x] free env %08x\n", curenv ? curenv->env_id : 0, e->env_id);
+	cprintf("%d [%08x] free env %08x\n", cpunum(), curenv ? curenv->env_id : 0, e->env_id);
 
 	// Flush all mapped pages in the user portion of the address space
 	static_assert(UTOP % PTSIZE == 0);
@@ -567,11 +568,10 @@ env_run(struct Env *e)
     curenv->env_status = ENV_RUNNABLE;
   }
   curenv = e;
+  e->env_cpunum = cpunum();
   e->env_status = ENV_RUNNING;
   e->env_runs += 1;
   unlock_kernel();
   lcr3(PADDR(e->env_pgdir));
   env_pop_tf(&(e->env_tf));
-
-	panic("env_run not yet implemented");
 }

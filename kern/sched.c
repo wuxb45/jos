@@ -30,29 +30,23 @@ sched_yield(void)
 	// below to switch to this CPU's idle environment.
 
 	// LAB 4: Your code here.
-  //cprintf("sched %d\n", cpunum());
-  //for (i = 0; i < 11; i++) {
-  //  cprintf("%d %d |", envs[i].env_status, envs[i].env_type);
-  //}
   struct Env *cur = curenv;
-  int envid;
-  int yield;
+  int baseid;
   if (cur) {
-    envid = cur - envs;
-    yield = envid;
+    baseid = ENVX(cur->env_id);
   } else {
-    envid = 0;
-    yield = -1;
+    baseid = 0;
   }
-  const int envend = envid;
-  if ((++envid) == NENV) envid = 0;
-  while (envid != envend) {
-    if ((envs[envid].env_status == ENV_RUNNABLE) &&
-        (envs[envid].env_type != ENV_TYPE_IDLE)) {
-      //cprintf("[%d] yields [%d], runs [%d]\n", cpunum(), yield, envid);
-      env_run(&envs[envid]); // never return;
+  for (i = 0; i < NENV; i++) {
+    const int id = (baseid + i) % NENV;
+    if ((envs[id].env_status == ENV_RUNNABLE) &&
+        (envs[id].env_type == ENV_TYPE_USER)) {
+      env_run(&envs[id]); // never return;
     }
-    if ((++envid) == NENV) envid = 0;
+  }
+  // cannot find another env, try the current one;
+  if (cur && (cur->env_status == ENV_RUNNING)) { // only my self
+    env_run(cur);
   }
 
 	// For debugging and testing purposes, if there are no
@@ -66,14 +60,12 @@ sched_yield(void)
 	}
 	if (i == NENV) {
 		cprintf("No more runnable environments!\n");
-    unlock_kernel();
 		while (1)
 			monitor(NULL);
 	}
 
 	// Run this CPU's idle environment when nothing else is runnable.
 	idle = &envs[cpunum()];
-  //cprintf("[%d] runs idle\n", cpunum());
 	if (!(idle->env_status == ENV_RUNNABLE || idle->env_status == ENV_RUNNING))
 		panic("CPU %d: No idle environment!", cpunum());
 	env_run(idle);

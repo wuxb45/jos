@@ -30,39 +30,43 @@ struct Pseudodesc idt_pd = {
 	sizeof(idt) - 1, (uint32_t) idt
 };
 
-
 static const char *trapname(int trapno)
 {
 	static const char * const excnames[] = {
-		"Divide error",
+		"Divide error", // 0
 		"Debug",
 		"Non-Maskable Interrupt",
 		"Breakpoint",
-		"Overflow",
+		"Overflow", // 4
 		"BOUND Range Exceeded",
 		"Invalid Opcode",
 		"Device Not Available",
-		"Double Fault",
+		"Double Fault", // 8
 		"Coprocessor Segment Overrun",
 		"Invalid TSS",
 		"Segment Not Present",
-		"Stack Fault",
+		"Stack Fault", // 12
 		"General Protection",
 		"Page Fault",
 		"(unknown trap)",
-		"x87 FPU Floating-Point Error",
+		"x87 FPU Floating-Point Error", // 16
 		"Alignment Check",
 		"Machine-Check",
-		"SIMD Floating-Point Exception"
+		"SIMD Floating-Point Exception",
+    [IRQ_OFFSET + IRQ_TIMER] = "IRQ TIMER",
+    [IRQ_OFFSET + IRQ_KBD] = "IRQ KBD",
+    [IRQ_OFFSET + IRQ_SERIAL] = "IRQ SERIAL",
+    [IRQ_OFFSET + IRQ_SPURIOUS] = "IRQ SPURIOUS",
+    [IRQ_OFFSET + IRQ_IDE] = "IRQ IDE",
+    [IRQ_OFFSET + IRQ_ERROR] = "IRQ ERROR",
+    [T_SYSCALL] = "System Call",
 	};
 
-	if (trapno < sizeof(excnames)/sizeof(excnames[0]))
-		return excnames[trapno];
-	if (trapno == T_SYSCALL)
-		return "System call";
-	if (trapno >= IRQ_OFFSET && trapno < IRQ_OFFSET + 16)
-		return "Hardware Interrupt";
-	return "(unknown trap)";
+	if (trapno < (sizeof(excnames)/sizeof(excnames[0]))){
+    return excnames[trapno];
+  } else {
+	  return "(unknown trap)";
+  }
 }
 
 extern void t_divide();
@@ -97,32 +101,32 @@ trap_init(void)
 	extern struct Segdesc gdt[];
 
 	// LAB 3: Your code here.
-  SETGATE(idt[T_DIVIDE],  1, GD_KT, t_divide,  0);
-  SETGATE(idt[T_DEBUG],   1, GD_KT, t_debug,   0);
-  SETGATE(idt[T_NMI],     1, GD_KT, t_nmi,     0);
-  SETGATE(idt[T_BRKPT],   1, GD_KT, t_brkpt,   3);
-  SETGATE(idt[T_OFLOW],   1, GD_KT, t_oflow,   0);
-  SETGATE(idt[T_BOUND],   1, GD_KT, t_bound,   0);
-  SETGATE(idt[T_ILLOP],   1, GD_KT, t_illop,   0);
-  SETGATE(idt[T_DEVICE],  1, GD_KT, t_device,  0);
-  SETGATE(idt[T_DBLFLT],  1, GD_KT, t_dblflt,  0);
-  SETGATE(idt[T_TSS],     1, GD_KT, t_tss,     0);
-  SETGATE(idt[T_SEGNP],   1, GD_KT, t_segnp,   0);
-  SETGATE(idt[T_STACK],   1, GD_KT, t_stack,   0);
-  SETGATE(idt[T_GPFLT],   1, GD_KT, t_gpflt,   0);
-  SETGATE(idt[T_PGFLT],   1, GD_KT, t_pgflt,   0);
-  SETGATE(idt[T_FPERR],   1, GD_KT, t_fperr,   0);
-  SETGATE(idt[T_ALIGN],   1, GD_KT, t_align,   0);
-  SETGATE(idt[T_MCHK],    1, GD_KT, t_mchk,    0);
-  SETGATE(idt[T_SIMDERR], 1, GD_KT, t_simderr, 0);
-  SETGATE(idt[T_SYSCALL], 1, GD_KT, t_syscall, 3);
+  SETGATE(idt[T_DIVIDE],  0, GD_KT, t_divide,  0);
+  SETGATE(idt[T_DEBUG],   0, GD_KT, t_debug,   0);
+  SETGATE(idt[T_NMI],     0, GD_KT, t_nmi,     0);
+  SETGATE(idt[T_BRKPT],   0, GD_KT, t_brkpt,   3);
+  SETGATE(idt[T_OFLOW],   0, GD_KT, t_oflow,   0);
+  SETGATE(idt[T_BOUND],   0, GD_KT, t_bound,   0);
+  SETGATE(idt[T_ILLOP],   0, GD_KT, t_illop,   0);
+  SETGATE(idt[T_DEVICE],  0, GD_KT, t_device,  0);
+  SETGATE(idt[T_DBLFLT],  0, GD_KT, t_dblflt,  0);
+  SETGATE(idt[T_TSS],     0, GD_KT, t_tss,     0);
+  SETGATE(idt[T_SEGNP],   0, GD_KT, t_segnp,   0);
+  SETGATE(idt[T_STACK],   0, GD_KT, t_stack,   0);
+  SETGATE(idt[T_GPFLT],   0, GD_KT, t_gpflt,   0);
+  SETGATE(idt[T_PGFLT],   0, GD_KT, t_pgflt,   0);
+  SETGATE(idt[T_FPERR],   0, GD_KT, t_fperr,   0);
+  SETGATE(idt[T_ALIGN],   0, GD_KT, t_align,   0);
+  SETGATE(idt[T_MCHK],    0, GD_KT, t_mchk,    0);
+  SETGATE(idt[T_SIMDERR], 0, GD_KT, t_simderr, 0);
+  SETGATE(idt[T_SYSCALL], 0, GD_KT, t_syscall, 3);
 
-  SETGATE(idt[IRQ_OFFSET+IRQ_TIMER],    1, GD_KT, t_irq_timer, 0);
-  SETGATE(idt[IRQ_OFFSET+IRQ_KBD],      1, GD_KT, t_irq_kbd, 0);
-  SETGATE(idt[IRQ_OFFSET+IRQ_SERIAL],   1, GD_KT, t_irq_serial, 0);
-  SETGATE(idt[IRQ_OFFSET+IRQ_SPURIOUS], 1, GD_KT, t_irq_spurious, 0);
-  SETGATE(idt[IRQ_OFFSET+IRQ_IDE],      1, GD_KT, t_irq_ide, 0);
-  SETGATE(idt[IRQ_OFFSET+IRQ_ERROR],    1, GD_KT, t_irq_error, 0);
+  SETGATE(idt[IRQ_OFFSET+IRQ_TIMER],    0, GD_KT, t_irq_timer, 0);
+  SETGATE(idt[IRQ_OFFSET+IRQ_KBD],      0, GD_KT, t_irq_kbd, 0);
+  SETGATE(idt[IRQ_OFFSET+IRQ_SERIAL],   0, GD_KT, t_irq_serial, 0);
+  SETGATE(idt[IRQ_OFFSET+IRQ_SPURIOUS], 0, GD_KT, t_irq_spurious, 0);
+  SETGATE(idt[IRQ_OFFSET+IRQ_IDE],      0, GD_KT, t_irq_ide, 0);
+  SETGATE(idt[IRQ_OFFSET+IRQ_ERROR],    0, GD_KT, t_irq_error, 0);
 
 	// Per-CPU setup 
 	trap_init_percpu();
@@ -321,7 +325,11 @@ trap(struct Trapframe *tf)
 		curenv->env_tf = *tf;
 		// The trapframe on the stack should be ignored from here on.
 		tf = &curenv->env_tf;
-	}
+	} else {
+    cprintf("%d trapped no 0x%x cs %08x\n", cpunum(), tf->tf_trapno, tf->tf_cs);
+    print_trapframe(tf);
+    print_trapframe(last_tf);
+  }
 
 	// Record that tf is the last real trapframe so
 	// print_trapframe can print some additional information.
@@ -427,16 +435,16 @@ page_fault_handler(struct Trapframe *tf)
   const uintptr_t uxp = ((uintptr_t)page2kva(pg_ux)) | PGOFF(ux_utf);
   struct UTrapframe *utf = (struct UTrapframe *)uxp;
   utf->utf_fault_va = fault_va;
-  utf->utf_err = curenv->env_tf.tf_err;
-  utf->utf_regs = curenv->env_tf.tf_regs;
-  utf->utf_eip = curenv->env_tf.tf_eip;
-  utf->utf_eflags = curenv->env_tf.tf_eflags;
-  utf->utf_esp = curenv->env_tf.tf_esp;
+  utf->utf_err = tf->tf_err;
+  utf->utf_regs = tf->tf_regs;
+  utf->utf_eip = tf->tf_eip;
+  utf->utf_eflags = tf->tf_eflags;
+  utf->utf_esp = tf->tf_esp;
 
-  curenv->env_tf.tf_esp = ux_esp;
+  tf->tf_esp = ux_esp;
 
   // make it 'call' to the trap frame
-  curenv->env_tf.tf_eip = (uint32_t)curenv->env_pgfault_upcall;
+  tf->tf_eip = (uint32_t)curenv->env_pgfault_upcall;
   env_run(curenv);
 }
 

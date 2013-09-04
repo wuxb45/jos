@@ -121,11 +121,6 @@ mp_main(void)
 	// Your code here:
   lock_kernel();
   sched_yield();
-  // will unlock in sched_yield() -> env_run()
-  //unlock_kernel();
-
-	// Remove this after you finish Exercise 4
-	//for (;;);
 }
 
 /*

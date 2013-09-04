@@ -85,7 +85,7 @@ sys_exofork(void)
 	// will appear to return 0.
 
 	// LAB 4: Your code here.
-  struct Env *newenv;
+  struct Env *newenv = NULL;
   
   const int r = env_alloc(&newenv, curenv->env_id);
   if (r != 0) return r;
@@ -368,8 +368,6 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
       return 0;
     default:
       return -E_INVAL;
-      break;
   }
-	panic("syscall not implemented");
 }
 
