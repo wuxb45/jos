@@ -126,7 +126,6 @@ env_init(void)
 	// Set up envs array
 	// LAB 3: Your code here.
   size_t i;
-  spin_lock(&env_lock);
   env_free_list = &envs[0];
   for (i = 0; i < NENV; i++) {
     envs[i].env_status = ENV_FREE;
@@ -135,7 +134,6 @@ env_init(void)
   }
   envs[NENV-1].env_link = NULL;
 
-  spin_unlock(&env_lock);
 	// Per-CPU part of the initialization
 	env_init_percpu();
 }
@@ -230,15 +228,12 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	int r;
 	struct Env *e;
 
-  spin_lock(&env_lock);
 	if (!(e = env_free_list)) {
-    spin_unlock(&env_lock);
 		return -E_NO_FREE_ENV;
   }
 
 	// Allocate and set up the page directory for this environment.
 	if ((r = env_setup_vm(e)) < 0) {
-    spin_unlock(&env_lock);
 		return r;
   }
 
@@ -277,6 +272,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 
 	// Enable interrupts while in user mode.
 	// LAB 4: Your code here.
+  e->env_tf.tf_eflags |= FL_IF;
 
 	// Clear the page fault handler until user installs one.
 	e->env_pgfault_upcall = 0;
@@ -288,7 +284,6 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	env_free_list = e->env_link;
 	*newenv_store = e;
 
-  spin_unlock(&env_lock);
 	cprintf("[%08x] new env %08x\n", curenv ? curenv->env_id : 0, e->env_id);
 	return 0;
 }
@@ -439,7 +434,6 @@ env_create(uint8_t *binary, size_t size, enum EnvType type)
   }
   load_icode(e, binary, size);
   e->env_type = type;
-  //paging_smart_scan(e->env_pgdir);
 }
 
 //
@@ -491,10 +485,8 @@ env_free(struct Env *e)
 
 	// return the environment to the free list
 	e->env_status = ENV_FREE;
-  spin_lock(&env_lock);
 	e->env_link = env_free_list;
 	env_free_list = e;
-  spin_unlock(&env_lock);
 }
 
 //
@@ -575,11 +567,11 @@ env_run(struct Env *e)
     curenv->env_status = ENV_RUNNABLE;
   }
   curenv = e;
-  curenv->env_status = ENV_RUNNING;
-  curenv->env_runs += 1;
+  e->env_status = ENV_RUNNING;
+  e->env_runs += 1;
   unlock_kernel();
-  lcr3(PADDR(curenv->env_pgdir));
-  env_pop_tf(&(curenv->env_tf));
+  lcr3(PADDR(e->env_pgdir));
+  env_pop_tf(&(e->env_tf));
 
 	panic("env_run not yet implemented");
 }
