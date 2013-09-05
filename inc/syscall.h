@@ -16,7 +16,9 @@ enum {
 	SYS_yield = 10,
 	SYS_ipc_try_send = 11,
 	SYS_ipc_recv = 12,
-  SYS_paging_scan = 13,
+	SYS_ipc_try_send_alt = 13,
+	SYS_ipc_recv_alt = 14,
+  SYS_paging_scan = 15,
 	NSYSCALLS
 };
 

@@ -6,6 +6,7 @@
 #include <inc/types.h>
 #include <inc/trap.h>
 #include <inc/memlayout.h>
+#include <kern/spinlock.h>
 
 typedef int32_t envid_t;
 
@@ -66,6 +67,19 @@ struct Env {
 	uint32_t env_ipc_value;		// Data value sent to us
 	envid_t env_ipc_from;		// envid of the sender
 	int env_ipc_perm;		// Perm of page mapping received
+
+  // Challenge: non-retry send.
+  // acquire the lock when performing operation on waiting_id.
+  // leave and yield when anyone is waiting
+  struct spinlock env_ipc_queue_lock;
+  envid_t env_ipc_waiting_count;
+
+  // buffer for outgoing data
+	bool env_ipc_sending;		// Env is blocked sending
+	void *env_ipc_va_send;		// VA at which to map sending page
+	uint32_t env_ipc_value_send;		// Data value to send
+	envid_t env_ipc_to;		// envid of the receiver
+	int env_ipc_perm_send;		// Perm of page mapping received
 };
 
 #endif // !JOS_INC_ENV_H

@@ -315,7 +315,7 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
     if (PGOFF(va) != 0) { return -E_INVAL; }
     if ((perm & (~PTE_SYSCALL)) != 0) { return -E_INVAL; }
     pte_t * ppte = NULL;
-    struct Page *pp = page_lookup(e->env_pgdir, srcva, &ppte);
+    struct Page *pp = page_lookup(curenv->env_pgdir, srcva, &ppte);
     if (pp == NULL) { return -E_INVAL; }
     if ((perm & PTE_W) && (((*ppte) & PTE_W) == 0)) { return -E_INVAL; }
     const int ri = page_insert(e->env_pgdir, pp, (void *)dstva, perm);
@@ -329,6 +329,55 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
   e->env_ipc_value = value;
   e->env_status = ENV_RUNNABLE;
   return 0;
+}
+
+static int
+sys_ipc_try_send_alt(envid_t envid, uint32_t value, void *srcva, unsigned perm)
+{
+  struct Env * ed = NULL;
+  const int re = envid2env(envid, &ed, 0);
+  if (re != 0) { return -E_BAD_ENV; }
+  assert(ed);
+  spin_lock(&(ed->env_ipc_queue_lock));
+
+  perm |= (PTE_U | PTE_P);
+  if (ed->env_ipc_recving) {
+    assert(ed->env_status == ENV_NOT_RUNNABLE);
+    // receiver is sleeping, send the message and wake up receiver.
+    const uintptr_t vasrc = (uintptr_t)srcva;
+    const uintptr_t vadst = (uintptr_t)ed->env_ipc_dstva;
+    if ((vadst < UTOP) && (vasrc < UTOP)) {
+      if (PGOFF(vasrc) != 0) { return -E_INVAL; }
+      if ((perm & (~PTE_SYSCALL)) != 0) { return -E_INVAL; }
+      pte_t * ppte = NULL;
+      struct Page *pp = page_lookup(curenv->env_pgdir, srcva, &ppte);
+      if (pp == NULL) { return -E_INVAL; }
+      if ((perm & PTE_W) && (((*ppte) & PTE_W) == 0)) { return -E_INVAL; }
+      const int ri = page_insert(ed->env_pgdir, pp, (void *)vadst, perm);
+      if (ri != 0) { return -E_NO_MEM; }
+      ed->env_ipc_perm = perm;
+    } else {
+      ed->env_ipc_perm = 0;
+    }
+    ed->env_ipc_recving = 0;
+    ed->env_ipc_from = curenv->env_id;
+    ed->env_ipc_value = value;
+    ed->env_status = ENV_RUNNABLE;
+    spin_unlock(&(ed->env_ipc_queue_lock));
+    return 0;
+  } else {
+    // not receiving, save local copy and yield.
+    curenv->env_ipc_sending = 1;
+    curenv->env_ipc_to = envid;
+    curenv->env_ipc_value_send = value;
+    curenv->env_ipc_va_send = srcva;
+    curenv->env_ipc_perm_send = perm;
+    curenv->env_status = ENV_NOT_RUNNABLE;
+    ed->env_ipc_waiting_count++;
+    spin_unlock(&(ed->env_ipc_queue_lock));
+    sched_yield();
+    return 0;
+  }
 }
 
 // Block until a value is ready.  Record that you want to receive
@@ -354,6 +403,83 @@ sys_ipc_recv(void *dstva)
   e->env_ipc_dstva = dstva;
   e->env_status = ENV_NOT_RUNNABLE;
   e->env_tf.tf_regs.reg_eax = 0;
+  sched_yield();
+  return 0;
+}
+
+static void
+wakeup_env_eax(struct Env *e, uint32_t eax) {
+  assert(e->env_status == ENV_NOT_RUNNABLE);
+  e->env_tf.tf_regs.reg_eax = eax;
+  e->env_status = ENV_RUNNABLE;
+}
+
+static int
+ipc_fetch_helper(struct Env *es, struct Env *ed, void *dstva)
+{
+  assert(es->env_status == ENV_NOT_RUNNABLE);
+
+  const uintptr_t vasrc = (uintptr_t)(es->env_ipc_va_send);
+  const uintptr_t vadst = (uintptr_t)(dstva);
+  const unsigned perm = es->env_ipc_perm_send | PTE_U | PTE_P;
+  if ((vadst < UTOP) && (vasrc < UTOP)) {
+    if (PGOFF(vasrc) != 0) { return -E_INVAL; }
+    if ((perm & (~PTE_SYSCALL)) != 0) { return -E_INVAL; }
+    pte_t * ppte = NULL;
+    struct Page *pp = page_lookup(es->env_pgdir, (void *)vasrc, &ppte);
+    if (pp == NULL) { return -E_INVAL; }
+    if ((perm & PTE_W) && (((*ppte) & PTE_W) == 0)) { return -E_INVAL; }
+    const int ri = page_insert(ed->env_pgdir, pp, (void *)vadst, perm);
+    if (ri != 0) { return -E_NO_MEM; }
+    ed->env_ipc_perm = perm;
+  } else {
+    ed->env_ipc_perm = 0;
+  }
+
+  ed->env_ipc_from = es->env_id;
+  ed->env_ipc_value = es->env_ipc_value_send;
+  return 0;
+}
+
+// alternative implementation: non-retry send
+static int
+sys_ipc_recv_alt(void *dstva)
+{
+  const uintptr_t vadst = (uintptr_t) dstva;
+  if ((vadst < UTOP) && (PGOFF(vadst) != 0)) { return -E_INVAL; }
+  struct Env * ed = curenv;
+  spin_lock(&(ed->env_ipc_queue_lock));
+  if (ed->env_ipc_waiting_count > 0) {
+    // at least one sender is waiting.
+    // fetch the message by myself.
+    // find a sender
+    uint32_t i;
+    const uint32_t rand = (uint32_t)read_tsc();
+    for (i = 0; i < NENV; i++) {
+      const uint32_t id = (i + rand) % NENV;
+      struct Env * es = &envs[id];
+      if (es->env_ipc_sending && (es->env_ipc_to == ed->env_id)) {
+        // a potential sender
+        const int rf = ipc_fetch_helper(es, ed, dstva);
+        es->env_tf.tf_regs.reg_eax = rf;
+        es->env_ipc_sending = 0;
+        es->env_status = ENV_RUNNABLE;
+        ed->env_ipc_waiting_count--;
+        if (rf == 0) {
+          spin_unlock(&(ed->env_ipc_queue_lock));
+          return 0;
+        }
+      }
+    }
+  }
+  // no one is sending (valid) message to me.
+  // yield and let the first sender perform the work.
+  // same with original implementation.
+  ed->env_ipc_recving = 1;
+  ed->env_ipc_dstva = dstva;
+  ed->env_status = ENV_NOT_RUNNABLE;
+  ed->env_tf.tf_regs.reg_eax = 0;
+  spin_unlock(&(ed->env_ipc_queue_lock));
   sched_yield();
   return 0;
 }
@@ -403,6 +529,10 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
       return sys_ipc_try_send((envid_t)a1, (uint32_t)a2, (void *)a3, (unsigned)a4);
     case SYS_ipc_recv:
       return sys_ipc_recv((void *)a1);
+    case SYS_ipc_try_send_alt:
+      return sys_ipc_try_send_alt((envid_t)a1, (uint32_t)a2, (void *)a3, (unsigned)a4);
+    case SYS_ipc_recv_alt:
+      return sys_ipc_recv_alt((void *)a1);
     default:
       return -E_INVAL;
   }

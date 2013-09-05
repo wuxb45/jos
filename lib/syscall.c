@@ -111,6 +111,18 @@ sys_ipc_recv(void *dstva)
 	return syscall(SYS_ipc_recv, 1, (uint32_t)dstva, 0, 0, 0, 0);
 }
 
+int
+sys_ipc_try_send_alt(envid_t envid, uint32_t value, void *srcva, int perm)
+{
+	return syscall(SYS_ipc_try_send_alt, 0, envid, value, (uint32_t) srcva, perm, 0);
+}
+
+int
+sys_ipc_recv_alt(void *dstva)
+{
+	return syscall(SYS_ipc_recv_alt, 1, (uint32_t)dstva, 0, 0, 0, 0);
+}
+
 void
 sys_paging_scan(void)
 {
