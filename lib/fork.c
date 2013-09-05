@@ -177,7 +177,6 @@ fork(void)
   const envid_t cid = sys_exofork();
   if (cid == 0) { // child
     const envid_t id = sys_getenvid();
-    thisenv = &envs[ENVX(id)];
     return 0;
   } else if (cid < 0) {
     panic("fork(): error on sys_exofork()");
@@ -220,7 +219,6 @@ sfork(void)
   const envid_t cid = sys_exofork();
   if (cid == 0) { // child
     const envid_t id = sys_getenvid();
-    thisenv = &envs[ENVX(id)];
     return 0;
   } else if (cid < 0) {
     panic("fork(): error on sys_exofork()");
