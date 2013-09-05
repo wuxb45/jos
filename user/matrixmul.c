@@ -117,8 +117,8 @@ north_op(struct workdesc *wd)
   const envid_t ids = find_south(wd);
   int i;
   for (i = 0; i < 3; i++) {
-    ipc_send(ids, 0, NULL, 0);
-    const envid_t rid = ipc_recv(NULL, NULL, NULL);
+    ipc_send_alt(ids, 0, NULL, 0);
+    const envid_t rid = ipc_recv_alt(NULL, NULL, NULL);
     assert(rid == ids);
   }
 }
@@ -130,8 +130,8 @@ west_op(struct workdesc *wd)
   int i;
   for (i = 0; i < 3; i++) {
     //cprintf("w[%d] send out %d\n", wd->x, MB[i][wd->x-1]);
-    ipc_send(ide, MB[i][wd->x-1], NULL, 0);
-    const envid_t rid = ipc_recv(NULL, NULL, NULL);
+    ipc_send_alt(ide, MB[i][wd->x-1], NULL, 0);
+    const envid_t rid = ipc_recv_alt(NULL, NULL, NULL);
     assert(rid == ide);
   }
 }
@@ -148,7 +148,7 @@ center_op(struct workdesc *wd)
   
   for (i = 0; i < 3; i++) {
     vw = vn = 0;
-    const int v1 = ipc_recv(&from1, NULL, NULL);
+    const int v1 = ipc_recv_alt(&from1, NULL, NULL);
     if (from1 == idw) {
       vw = v1;
     } else if (from1 == idn) {
@@ -157,7 +157,7 @@ center_op(struct workdesc *wd)
       print_env_info(from1);
       panic("[%d,%d] recv not expected", wd->x, wd->y);
     }
-    const int v2 = ipc_recv(&from2, NULL, NULL);
+    const int v2 = ipc_recv_alt(&from2, NULL, NULL);
     if (from1 == from2) {
       panic("from1 == from2, %d %d", from1, from2);
     }
@@ -171,13 +171,13 @@ center_op(struct workdesc *wd)
     }
     //cprintf("[%d,%d]: n:%d, w:%d -> %d * %d + %d\n", wd->x, wd->y, vn, vw, vw, MA[wd->x-1][wd->y-1], vn);
     const int vt = vw * MA[wd->x-1][wd->y-1] + vn;
-    ipc_send(ide, vw, NULL, 0);
-    ipc_send(ids, vt, NULL, 0);
-    ipc_recv(NULL, NULL, NULL);
-    ipc_recv(NULL, NULL, NULL);
+    ipc_send_alt(ide, vw, NULL, 0);
+    ipc_send_alt(ids, vt, NULL, 0);
+    ipc_recv_alt(NULL, NULL, NULL);
+    ipc_recv_alt(NULL, NULL, NULL);
     // at last, send feedback
-    ipc_send(idn, wd->id, NULL, 0);
-    ipc_send(idw, wd->id, NULL, 0);
+    ipc_send_alt(idn, wd->id, NULL, 0);
+    ipc_send_alt(idw, wd->id, NULL, 0);
   }
 }
 
@@ -187,8 +187,8 @@ east_op(struct workdesc *wd)
   const envid_t idw = find_west(wd);
   int i;
   for (i = 0; i < 3; i++) {
-    (void)ipc_recv(NULL, NULL, NULL);
-    (void)ipc_send(idw, 0, NULL, 0);
+    (void)ipc_recv_alt(NULL, NULL, NULL);
+    (void)ipc_send_alt(idw, 0, NULL, 0);
   }
 }
 
@@ -199,9 +199,9 @@ south_op(struct workdesc *wd)
   envid_t idr;
   int i, r;
   for (i = 0; i < 3; i++) {
-    r = ipc_recv(&idr, NULL, NULL);
+    r = ipc_recv_alt(&idr, NULL, NULL);
     assert(idr == idn);
-    ipc_send(idn, 0, NULL, 0);
+    ipc_send_alt(idn, 0, NULL, 0);
     MC[i][wd->y-1] = r;
   }
   const int y = wd->y -1;
