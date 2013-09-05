@@ -12,7 +12,7 @@
 // The big kernel lock
 struct spinlock kernel_lock = {
 #ifdef DEBUG_SPINLOCK
-	.name = "kernel_lock"
+	.name = "kernel_lock",
 #endif
 };
 

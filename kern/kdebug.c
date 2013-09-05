@@ -19,96 +19,91 @@ struct UserStabData {
 	const char *stabstr_end;
 };
 
-
 // stab_binsearch(stabs, region_left, region_right, type, addr)
 //
-//	Some stab types are arranged in increasing order by instruction
-//	address.  For example, N_FUN stabs (stab entries with n_type ==
-//	N_FUN), which mark functions, and N_SO stabs, which mark source files.
+//      Some stab types are arranged in increasing order by instruction
+//      address.  For example, N_FUN stabs (stab entries with n_type ==
+//      N_FUN), which mark functions, and N_SO stabs, which mark source files.
 //
-//	Given an instruction address, this function finds the single stab
-//	entry of type 'type' that contains that address.
+//      Given an instruction address, this function finds the single stab
+//      entry of type 'type' that contains that address.
 //
-//	The search takes place within the range [*region_left, *region_right].
-//	Thus, to search an entire set of N stabs, you might do:
+//      The search takes place within the range [*region_left, *region_right].
+//      Thus, to search an entire set of N stabs, you might do:
 //
-//		left = 0;
-//		right = N - 1;     /* rightmost stab */
-//		stab_binsearch(stabs, &left, &right, type, addr);
+//              left = 0;
+//              right = N - 1;     /* rightmost stab */
+//              stab_binsearch(stabs, &left, &right, type, addr);
 //
-//	The search modifies *region_left and *region_right to bracket the
-//	'addr'.  *region_left points to the matching stab that contains
-//	'addr', and *region_right points just before the next stab.  If
-//	*region_left > *region_right, then 'addr' is not contained in any
-//	matching stab.
+//      The search modifies *region_left and *region_right to bracket the
+//      'addr'.  *region_left points to the matching stab that contains
+//      'addr', and *region_right points just before the next stab.  If
+//      *region_left > *region_right, then 'addr' is not contained in any
+//      matching stab.
 //
-//	For example, given these N_SO stabs:
-//		Index  Type   Address
-//		0      SO     f0100000
-//		13     SO     f0100040
-//		117    SO     f0100176
-//		118    SO     f0100178
-//		555    SO     f0100652
-//		556    SO     f0100654
-//		657    SO     f0100849
-//	this code:
-//		left = 0, right = 657;
-//		stab_binsearch(stabs, &left, &right, N_SO, 0xf0100184);
-//	will exit setting left = 118, right = 554.
+//      For example, given these N_SO stabs:
+//              Index  Type   Address
+//              0      SO     f0100000
+//              13     SO     f0100040
+//              117    SO     f0100176
+//              118    SO     f0100178
+//              555    SO     f0100652
+//              556    SO     f0100654
+//              657    SO     f0100849
+//      this code:
+//              left = 0, right = 657; (corresponding to Index)
+//              stab_binsearch(stabs, &left, &right, N_SO, 0xf0100184);
+//      will exit setting left = 118, right = 554.
 //
 static void
 stab_binsearch(const struct Stab *stabs, int *region_left, int *region_right,
-	       int type, uintptr_t addr)
+               int type, uintptr_t addr)
 {
-	int l = *region_left, r = *region_right, any_matches = 0;
-	
-	while (l <= r) {
-		int true_m = (l + r) / 2, m = true_m;
-		
-		// search for earliest stab with right type
-		while (m >= l && stabs[m].n_type != type)
-			m--;
-		if (m < l) {	// no match in [l, m]
-			l = true_m + 1;
-			continue;
-		}
+  int l = *region_left, r = *region_right, any_matches = 0;
 
-		// actual binary search
-		any_matches = 1;
-		if (stabs[m].n_value < addr) {
-			*region_left = m;
-			l = true_m + 1;
-		} else if (stabs[m].n_value > addr) {
-			*region_right = m - 1;
-			r = m - 1;
-		} else {
-			// exact match for 'addr', but continue loop to find
-			// *region_right
-			*region_left = m;
-			l = m;
-			addr++;
-		}
-	}
+  while (l <= r) {
+    int true_m = (l + r) / 2, m = true_m;
 
-	if (!any_matches)
-		*region_right = *region_left - 1;
-	else {
-		// find rightmost region containing 'addr'
-		for (l = *region_right;
-		     l > *region_left && stabs[l].n_type != type;
-		     l--)
-			/* do nothing */;
-		*region_left = l;
-	}
+    // search for earliest stab with right type
+    while (m >= l && stabs[m].n_type != type)
+      m--;
+    if (m < l) {                // no match in [l, m]
+      l = true_m + 1;
+      continue;
+    }
+    // actual binary search
+    any_matches = 1;
+    if (stabs[m].n_value < addr) {
+      *region_left = m;
+      l = true_m + 1;
+    } else if (stabs[m].n_value > addr) {
+      *region_right = m - 1;
+      r = m - 1;
+    } else {
+      // exact match for 'addr', but continue loop to find
+      // *region_right
+      *region_left = m;
+      l = m;
+      addr++;
+    }
+  }
+
+  if (!any_matches)
+    *region_right = *region_left - 1;
+  else {
+    // find rightmost region containing 'addr'
+    for (l = *region_right; l > *region_left && stabs[l].n_type != type; l--)
+      /* do nothing */ ;
+    *region_left = l;
+  }
 }
-
 
 // debuginfo_eip(addr, info)
 //
-//	Fill in the 'info' structure with information about the specified
-//	instruction address, 'addr'.  Returns 0 if information was found, and
-//	negative if not.  But even if it returns negative it has stored some
-//	information into '*info'.
+//      Fill in the 'info' structure with information about the specified
+//      instruction address, 'addr'.  Returns 0 if information was found, and
+//      negative if not.  But even if it returns negative it has stored some
+//      information into '*info'.
 //
 int
 debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
@@ -142,6 +137,9 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 		// Make sure this memory is valid.
 		// Return -1 if it is not.  Hint: Call user_mem_check.
 		// LAB 3: Your code here.
+    uint32_t r;
+    r = user_mem_check(curenv, (void *)usd, sizeof(struct UserStabData), PTE_U);
+    if (r < 0) { return -1; }
 
 		stabs = usd->stabs;
 		stab_end = usd->stab_end;
@@ -150,6 +148,12 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 
 		// Make sure the STABS and string table memory is valid.
 		// LAB 3: Your code here.
+    const size_t stabs_len = ((uintptr_t)stab_end) - ((uintptr_t)stabs);
+    r = user_mem_check(curenv, (void *)stabs, stabs_len, PTE_U);
+    if (r < 0) { return -1; }
+    const size_t stabstr_len = ((uintptr_t)stabstr_end) - ((uintptr_t)stabstr);
+    r = user_mem_check(curenv, (void *)stabstr, stabstr_len, PTE_U);
+    if (r < 0) { return -1; }
 	}
 
 	// String table validity checks
@@ -204,6 +208,10 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 	//	Look at the STABS documentation and <inc/stab.h> to find
 	//	which one.
 	// Your code here.
+  stab_binsearch(stabs, &lline, &rline, N_SLINE, addr);
+  if (lline <= rline) {
+    info->eip_line = stabs[lline].n_desc;
+  }
 
 	
 	// Search backwards from the line number for the relevant filename

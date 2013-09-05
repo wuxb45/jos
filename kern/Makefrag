@@ -30,13 +30,13 @@ KERN_SRCFILES :=	kern/entry.S \
 			kern/kdebug.c \
 			lib/printfmt.c \
 			lib/readline.c \
-			lib/string.c
+			lib/string.c \
 
 # Source files for LAB4
 KERN_SRCFILES +=	kern/mpentry.S \
 			kern/mpconfig.c \
 			kern/lapic.c \
-			kern/spinlock.c
+			kern/spinlock.c \
 
 # Only build files if they exist.
 KERN_SRCFILES := $(wildcard $(KERN_SRCFILES))
@@ -55,7 +55,7 @@ KERN_BINFILES :=	user/hello \
 			user/faultread \
 			user/faultreadkernel \
 			user/faultwrite \
-			user/faultwritekernel
+			user/faultwritekernel \
 
 # Binary files for LAB4
 KERN_BINFILES +=	user/idle \
@@ -73,13 +73,16 @@ KERN_BINFILES +=	user/idle \
 			user/spin \
 			user/fairness \
 			user/pingpong \
+			user/pingpongalt \
 			user/pingpongs \
-			user/primes
+			user/primes \
+			user/primesalt \
+			user/matrixmul \
 # Binary files for LAB5
 KERN_BINFILES +=	user/testfile \
 			user/writemotd \
 			user/icode \
-			fs/fs
+			fs/fs \
 
 KERN_OBJFILES := $(patsubst %.c, $(OBJDIR)/%.o, $(KERN_SRCFILES))
 KERN_OBJFILES := $(patsubst %.S, $(OBJDIR)/%.o, $(KERN_OBJFILES))
