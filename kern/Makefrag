@@ -70,6 +70,7 @@ KERN_BINFILES +=	user/idle \
 			user/faultbadhandler \
 			user/faultevilhandler \
 			user/forktree \
+			user/forktrees \
 			user/spin \
 			user/fairness \
 			user/pingpong \
@@ -78,6 +79,7 @@ KERN_BINFILES +=	user/idle \
 			user/primes \
 			user/primesalt \
 			user/matrixmul \
+
 # Binary files for LAB5
 KERN_BINFILES +=	user/testfile \
 			user/writemotd \
