@@ -18,6 +18,7 @@ void monitor(struct Trapframe *tf);
 DECLARE_MON(help);
 DECLARE_MON(kerninfo);
 DECLARE_MON(backtrace);
+DECLARE_MON(envbacktrace);
 DECLARE_MON(showmappings);
 DECLARE_MON(permset);
 DECLARE_MON(dumpva);

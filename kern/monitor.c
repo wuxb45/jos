@@ -34,6 +34,7 @@ static struct Command commands[] = {
   {"help", "Display this list of commands", mon_help},
   {"kerninfo", "Display information about the kernel", mon_kerninfo},
   {"backtrace", "Backtrace Current Call-Stack", mon_backtrace},
+  {"envbacktrace", "Backtrace Env", mon_envbacktrace},
   {"showmap", "Show Paging Translation Mappings", mon_showmappings},
   {"permset", "Set/Unset page permissions", mon_permset},
   {"dumppa", "Dump data in Physical Address", mon_dumppa},
@@ -108,6 +109,50 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
     eip = *(((uint32_t *) ebp) + 1);
     ebp = *((uint32_t *) ebp);
   }
+  return 0;
+}
+
+int
+mon_envbacktrace(int argc, char **argv, struct Trapframe *tf)
+{
+  const envid_t envid = (argc < 2)?0:strtol(argv[1], NULL, 16);
+  struct Env *e = NULL;
+  const int r = envid2env(envid, &e, 0);
+  if (r < 0) {
+    cprintf("no such Env\n");
+    return 0;
+  }
+  cprintf("backtrace Env: %08x\n", e->env_id);
+  
+  lcr3(PADDR(e->env_pgdir));
+  uint32_t ebp, eip;
+  uint32_t arg;
+  int i, nargs;
+  struct Eipdebuginfo info = { };
+  cprintf("Stack backtrace:\n");
+
+  //current func
+  eip = e->env_tf.tf_eip;
+  ebp = e->env_tf.tf_regs.reg_ebp;
+  while (ebp) {
+    // get debuginfo
+    const int r = debuginfo_eip((uintptr_t) eip, &info);
+    if (r != 0) return 0;
+    nargs = info.eip_fn_narg;
+    // print stack info
+    cprintf("  ebp %08x  eip %08x  args[%d] ", ebp, eip, nargs);
+    for (i = 0; i < nargs; i++) {
+      arg = *(((uint32_t *) ebp) + 2 + i);
+      cprintf(" %08x", arg);
+    }
+    // print symbol info
+    cprintf("\n        %s:%d:   %.*s+%d\n", info.eip_file, info.eip_line,
+            info.eip_fn_namelen, info.eip_fn_name, (eip - info.eip_fn_addr));
+    // trace back: next eip,ebp
+    eip = *(((uint32_t *) ebp) + 1);
+    ebp = *((uint32_t *) ebp);
+  }
+  lcr3(PADDR(kern_pgdir));
   return 0;
 }
 
