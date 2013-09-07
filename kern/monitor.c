@@ -43,6 +43,7 @@ static struct Command commands[] = {
   {"cpuid", "Get CPUID of monitor", mon_cpuid},
   {"uscan", "Scanning Page Mapping of User Env", mon_uscan},
   {"kscan", "Scanning Page Mapping of Kernel", mon_kscan},
+  {"envs", "Show Running Envs", mon_envs},
 };
 
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
@@ -320,6 +321,34 @@ mon_kscan(int argc, char ** argv, struct Trapframe *tf)
   paging_smart_scan(kern_pgdir);
   return 0;
 }
+
+int
+mon_envs(int argc, char ** argv, struct Trapframe *tf)
+{
+  int i;
+  for (i = 0; i < NENV; i++) {
+    if (envs[i].env_status != ENV_FREE) {
+      char * status;
+      switch (envs[i].env_status) {
+        case ENV_RUNNING: status = "RUNNING"; break;
+        case ENV_RUNNABLE: status = "RUNNABLE"; break;
+        case ENV_DYING: status = "DYING"; break;
+        case ENV_NOT_RUNNABLE: status = "NOT_RUNNABLE"; break;
+        default: status = "???"; break;
+      }
+      char * type;
+      switch (envs[i].env_type) {
+        case ENV_TYPE_USER: type = "USER"; break;
+        case ENV_TYPE_IDLE: type = "IDLE"; break;
+        case ENV_TYPE_FS: type = "FS"; break;
+        default: type = "???"; break;
+      }
+      cprintf("ENV[%08x] %s %s\n", envs[i].env_id, type, status);
+    }
+  }
+  return 0;
+}
+
 /***** Kernel monitor command interpreter *****/
 
 #define WHITESPACE "\t\r\n "

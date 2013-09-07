@@ -27,5 +27,6 @@ DECLARE_MON(step);
 DECLARE_MON(cpuid);
 DECLARE_MON(uscan);
 DECLARE_MON(kscan);
+DECLARE_MON(envs);
 
 #endif                          // !JOS_KERN_MONITOR_H
