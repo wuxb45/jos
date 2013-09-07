@@ -26,6 +26,9 @@
 
 #define MAXFILESIZE	((NDIRECT + NINDIRECT) * BLKSIZE)
 
+#define BNOTOVA(bno) ((((uint32_t)(bno)) * BLKSIZE + DISKMAP))
+#define VATOBNO(va) ((((uint32_t)(va)) - DISKMAP) / BLKSIZE)
+
 struct File {
 	char f_name[MAXNAMELEN];	// filename
 	off_t f_size;			// file size in bytes
