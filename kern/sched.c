@@ -40,7 +40,7 @@ sched_yield(void)
   for (i = 0; i < NENV; i++) {
     const int id = (baseid + i) % NENV;
     if ((envs[id].env_status == ENV_RUNNABLE) &&
-        (envs[id].env_type == ENV_TYPE_USER)) {
+        (envs[id].env_type != ENV_TYPE_IDLE)) {
       env_run(&envs[id]); // never return;
     }
   }
