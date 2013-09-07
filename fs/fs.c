@@ -45,6 +45,8 @@ free_block(uint32_t blockno)
 	if (blockno == 0)
 		panic("attempt to free zero block");
 	bitmap[blockno/bitsof(uint32_t)] |= 1<<(blockno%bitsof(uint32_t));
+  // no need to flush the free block: scanner can solve this.
+  //flush_block(&(bitmap[bno/bitsof(uint32_t)]));
 }
 
 // Search the bitmap for a free block and allocate it.  When you
@@ -163,7 +165,9 @@ file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool all
           return indirect; // -E_NO_DISK
         }
         memset((void *)(BNOTOVA(indirect)), 0, BLKSIZE);
+        flush_block(diskaddr(indirect));
         f->f_indirect = indirect;
+        flush_block(f);
       } else {
         // no bno
         *ppdiskbno = NULL;
@@ -171,7 +175,7 @@ file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool all
       }
     }
     assert(f->f_indirect);
-    uint32_t *ind_va = (uint32_t *)(BNOTOVA(f->f_indirect));
+    uint32_t *ind_va = (uint32_t *)(diskaddr(f->f_indirect));
     *ppdiskbno = &(ind_va[filebno - NDIRECT]);
     return 0;
   }
@@ -199,8 +203,9 @@ file_get_block(struct File *f, uint32_t filebno, char **blk)
     const int ra = alloc_block();
     if (ra < 0) return ra;
     *pdiskbno = (uint32_t)ra;
+    flush_block(diskaddr(*pdiskbno));
   }
-  *blk = (char *)BNOTOVA(*pdiskbno);
+  *blk = diskaddr(*pdiskbno);
   return 0;
 }
 
@@ -428,8 +433,11 @@ file_free_block(struct File *f, uint32_t filebno)
 	if ((r = file_block_walk(f, filebno, &ptr, 0)) < 0)
 		return r;
 	if (*ptr) {
-		free_block(*ptr);
+    // swap the operation order for fs consistency
+    const uint32_t bno = *ptr;
 		*ptr = 0;
+    flush_block(ptr);
+		free_block(bno);
 	}
 	return 0;
 }
@@ -444,20 +452,23 @@ file_free_block(struct File *f, uint32_t filebno)
 // whether it's valid!)
 // Do not change f->f_size.
 static void
-file_truncate_blocks(struct File *f, off_t newsize)
+file_truncate_blocks(struct File *f, off_t oldsize, off_t newsize)
 {
 	int r;
 	uint32_t bno, old_nblocks, new_nblocks;
 
-	old_nblocks = (f->f_size + BLKSIZE - 1) / BLKSIZE;
+	old_nblocks = (oldsize + BLKSIZE - 1) / BLKSIZE;
 	new_nblocks = (newsize + BLKSIZE - 1) / BLKSIZE;
 	for (bno = new_nblocks; bno < old_nblocks; bno++)
 		if ((r = file_free_block(f, bno)) < 0)
 			cprintf("warning: file_free_block: %e", r);
 
 	if (new_nblocks <= NDIRECT && f->f_indirect) {
-		free_block(f->f_indirect);
+    // swap the operation order for fs consistency
+    const uint32_t bno = f->f_indirect;
 		f->f_indirect = 0;
+    flush_block(f);
+		free_block(bno);
 	}
 }
 
@@ -465,9 +476,14 @@ file_truncate_blocks(struct File *f, off_t newsize)
 int
 file_set_size(struct File *f, off_t newsize)
 {
-	if (f->f_size > newsize)
-		file_truncate_blocks(f, newsize);
-	f->f_size = newsize;
+	if (f->f_size > newsize) {
+    const off_t oldsize = f->f_size;
+    f->f_size = newsize;
+    flush_block(f);
+		file_truncate_blocks(f, oldsize, newsize);
+  } else { // f->f_size <= newsize
+    f->f_size = newsize;
+  }
 	flush_block(f);
 	return 0;
 }
@@ -503,9 +519,12 @@ file_remove(const char *path)
 	if ((r = walk_path(path, 0, &f, 0)) < 0)
 		return r;
 
-	file_truncate_blocks(f, 0);
-	f->f_name[0] = '\0';
+  // first, make sure size is reduced.
+  const off_t oldsize = f->f_size;
 	f->f_size = 0;
+	f->f_name[0] = '\0';
+  flush_block(f);
+	file_truncate_blocks(f, oldsize, 0);
 	flush_block(f);
 
 	return 0;
