@@ -1,4 +1,5 @@
 #include <inc/string.h>
+#include <inc/x86.h>
 
 #include "fs.h"
 
@@ -30,7 +31,7 @@ block_is_free(uint32_t blockno)
 {
 	if (super == 0 || blockno >= super->s_nblocks)
 		return 0;
-	if (bitmap[blockno / 32] & (1 << (blockno % 32)))
+	if (bitmap[blockno/32] & (1<<(blockno%32)))
 		return 1;
 	return 0;
 }
@@ -61,8 +62,20 @@ alloc_block(void)
 	// super->s_nblocks blocks in the disk altogether.
 
 	// LAB 5: Your code here.
-	panic("alloc_block not implemented");
-	return -E_NO_DISK;
+  if (super == 0) {
+    return -E_NO_DISK;
+  }
+  const uint32_t nbno = super->s_nblocks;
+  uint32_t bno = read_tsc() % nbno;
+  uint32_t cnt = 0;
+  while(!block_is_free(bno)) {
+    bno = (bno + 1) % nbno;
+    cnt++;
+    if (cnt == nbno) return -E_NO_DISK;
+  }
+  bitmap[bno/32] &= (~(1<<(bno%sizeof(uint32_t))));
+  flush_block(&(bitmap[bno/32]));
+	return bno;
 }
 
 // Validate the file system bitmap.
