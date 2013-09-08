@@ -9,7 +9,7 @@
 #include "fs.h"
 
 
-#define debug 0
+#define debug (0)
 
 // The file system server maintains three structures
 // for each open file.
@@ -110,7 +110,7 @@ serve_open(envid_t envid, struct Fsreq_open *req,
 	struct OpenFile *o;
 
 	if (debug)
-		cprintf("serve_open %08x %s 0x%x\n", envid, req->req_path, req->req_omode);
+		cprintf("serve_open envid:%08x path:%s req_omode:0x%x\n", envid, req->req_path, req->req_omode);
 
 	// Copy in the path, making sure it's null-terminated
 	memmove(path, req->req_path, MAXPATHLEN);
@@ -178,7 +178,7 @@ serve_set_size(envid_t envid, struct Fsreq_set_size *req)
 	int r;
 
 	if (debug)
-		cprintf("serve_set_size %08x %08x %08x\n", envid, req->req_fileid, req->req_size);
+		cprintf("serve_set_size envid:%08x req_fileid:%08x req->req_size:%08x\n", envid, req->req_fileid, req->req_size);
 
 	// Every file system IPC call has the same general structure.
 	// Here's how it goes.
@@ -204,7 +204,7 @@ serve_read(envid_t envid, union Fsipc *ipc)
 	struct Fsret_read *ret = &ipc->readRet;
 
 	if (debug)
-		cprintf("serve_read %08x %08x %08x\n", envid, req->req_fileid, req->req_n);
+		cprintf("serve_read envid:%08x req_fileid:%08x req_n:%08x\n", envid, req->req_fileid, req->req_n);
 
 	// Look up the file id, read the bytes into 'ret', and update
 	// the seek position.  Be careful if req->req_n > PGSIZE
@@ -215,7 +215,15 @@ serve_read(envid_t envid, union Fsipc *ipc)
 	// Hint: Use file_read.
 	// Hint: The seek position is stored in the struct Fd.
 	// LAB 5: Your code here
-	panic("serve_read not implemented");
+  struct OpenFile *of = NULL;
+  const int rl = openfile_lookup(envid, req->req_fileid, &of);
+  if (rl < 0) { return rl; }
+  const size_t count = MIN(req->req_n, PGSIZE);
+  const ssize_t rr = file_read(of->o_file, ret->ret_buf, count, of->o_fd->fd_offset);
+  if (rr > 0) {
+    of->o_fd->fd_offset += rr;
+  }
+  return rr;
 }
 
 // Write req->req_n bytes from req->req_buf to req_fileid, starting at
@@ -226,10 +234,20 @@ int
 serve_write(envid_t envid, struct Fsreq_write *req)
 {
 	if (debug)
-		cprintf("serve_write %08x %08x %08x\n", envid, req->req_fileid, req->req_n);
+		cprintf("serve_write envid:%08x req_fileid:%08x req_n:%08x\n", envid, req->req_fileid, req->req_n);
 
 	// LAB 5: Your code here.
-	panic("serve_write not implemented");
+  char *buf = req->req_buf;
+
+  struct OpenFile *of = NULL;
+  const int rl = openfile_lookup(envid, req->req_fileid, &of);
+  if (rl < 0) { return rl; }
+  const size_t count = MIN(req->req_n, (PGSIZE - sizeof(int) - sizeof(size_t)));
+  const ssize_t rw = file_write(of->o_file, buf, count, of->o_fd->fd_offset);
+  if (rw > 0) {
+    of->o_fd->fd_offset += rw;
+  }
+  return rw;
 }
 
 // Stat ipc->stat.req_fileid.  Return the file's struct Stat to the
@@ -243,7 +261,7 @@ serve_stat(envid_t envid, union Fsipc *ipc)
 	int r;
 
 	if (debug)
-		cprintf("serve_stat %08x %08x\n", envid, req->req_fileid);
+		cprintf("serve_stat envid:%08x req_fileid:%08x\n", envid, req->req_fileid);
 
 	if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0)
 		return r;
@@ -262,7 +280,7 @@ serve_flush(envid_t envid, struct Fsreq_flush *req)
 	int r;
 
 	if (debug)
-		cprintf("serve_flush %08x %08x\n", envid, req->req_fileid);
+		cprintf("serve_flush envid:%08x req_fileid:%08x\n", envid, req->req_fileid);
 
 	if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0)
 		return r;
@@ -278,7 +296,7 @@ serve_remove(envid_t envid, struct Fsreq_remove *req)
 	int r;
 
 	if (debug)
-		cprintf("serve_remove %08x %s\n", envid, req->req_path);
+		cprintf("serve_remove envid:%08x req_path:%s\n", envid, req->req_path);
 
 	// Delete the named file.
 	// Note: This request doesn't refer to an open file.
@@ -310,7 +328,7 @@ fshandler handlers[] = {
 	[FSREQ_STAT] =		serve_stat,
 	[FSREQ_FLUSH] =		(fshandler)serve_flush,
 	[FSREQ_REMOVE] =	(fshandler)serve_remove,
-	[FSREQ_SYNC] =		serve_sync
+	[FSREQ_SYNC] =		serve_sync,
 };
 #define NHANDLERS (sizeof(handlers)/sizeof(handlers[0]))
 
@@ -330,7 +348,7 @@ serve(void)
 
 		// All requests must contain an argument page
 		if (!(perm & PTE_P)) {
-			cprintf("Invalid request from %08x: no argument page\n",
+			cprintf("Invalid request from envid:%08x: no argument page\n",
 				whom);
 			continue; // just leave it hanging...
 		}
@@ -341,7 +359,7 @@ serve(void)
 		} else if (req < NHANDLERS && handlers[req]) {
 			r = handlers[req](whom, fsreq);
 		} else {
-			cprintf("Invalid request code %d from %08x\n", whom, req);
+			cprintf("Invalid request code %d from envid:%08x\n", req, whom);
 			r = -E_INVAL;
 		}
 		ipc_send(whom, r, pg, perm);

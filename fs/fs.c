@@ -482,6 +482,9 @@ file_set_size(struct File *f, off_t newsize)
     flush_block(f);
 		file_truncate_blocks(f, oldsize, newsize);
   } else { // f->f_size <= newsize
+    if (newsize > MAXFILESIZE) {
+      return -E_INVAL;
+    }
     f->f_size = newsize;
   }
 	flush_block(f);
