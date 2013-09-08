@@ -1,7 +1,7 @@
 #ifndef JOS_KERN_MONITOR_H
 #define JOS_KERN_MONITOR_H
 #ifndef JOS_KERNEL
-# error "This is a JOS kernel header; user programs should not #include it"
+#error "This is a JOS kernel header; user programs should not #include it"
 #endif
 
 struct Trapframe;
@@ -12,8 +12,22 @@ struct Trapframe;
 void monitor(struct Trapframe *tf);
 
 // Functions implementing monitor commands.
-int mon_help(int argc, char **argv, struct Trapframe *tf);
-int mon_kerninfo(int argc, char **argv, struct Trapframe *tf);
-int mon_backtrace(int argc, char **argv, struct Trapframe *tf);
+#define DECLARE_MON(name) \
+  int mon_##name (int, char **, struct Trapframe *)
 
-#endif	// !JOS_KERN_MONITOR_H
+DECLARE_MON(help);
+DECLARE_MON(kerninfo);
+DECLARE_MON(backtrace);
+DECLARE_MON(envbacktrace);
+DECLARE_MON(showmappings);
+DECLARE_MON(permset);
+DECLARE_MON(dumpva);
+DECLARE_MON(dumppa);
+DECLARE_MON(resume);
+DECLARE_MON(step);
+DECLARE_MON(cpuid);
+DECLARE_MON(uscan);
+DECLARE_MON(kscan);
+DECLARE_MON(envs);
+
+#endif                          // !JOS_KERN_MONITOR_H

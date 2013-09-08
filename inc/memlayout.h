@@ -4,7 +4,7 @@
 #ifndef __ASSEMBLER__
 #include <inc/types.h>
 #include <inc/mmu.h>
-#endif /* not __ASSEMBLER__ */
+#endif                          /* not __ASSEMBLER__ */
 
 /*
  * This file contains definitions for memory management in our OS,
@@ -12,79 +12,72 @@
  */
 
 // Global descriptor numbers
-#define GD_KT     0x08     // kernel text
-#define GD_KD     0x10     // kernel data
-#define GD_UT     0x18     // user text
-#define GD_UD     0x20     // user data
-#define GD_TSS0   0x28     // Task segment selector for CPU 0
+#define GD_KT     0x08          // kernel text
+#define GD_KD     0x10          // kernel data
+#define GD_UT     0x18          // user text
+#define GD_UD     0x20          // user data
+#define GD_TSS0   0x28          // Task segment selector
+
+// PGSIZE: bytes mapped by a page (4096)
+// PTSIZE: bytes mapped by a page directory entry (4096 * 1024)
 
 /*
- * Virtual memory map:                                Permissions
- *                                                    kernel/user
+ * Virtual memory map:                                          Permissions
+ *                                                                    KK/UU
  *
  *    4 Gig -------->  +------------------------------+
- *                     |       Memory-mapped I/O      | RW/--
- *    IOMEMBASE ---->  +------------------------------+ 0xfe000000
- *                     |                              | RW/--
+ *                     |                              |               RW/--
  *                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *                     :              .               :
- *                     :              .               :
- *                     :              .               :
- *                     |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~| RW/--
- *                     |                              | RW/--
- *                     |   Remapped Physical Memory   | RW/--
- *                     |                              | RW/--
+ *                     :              .               :                .
+ *                     :              .               :                .
+ *                     :              .               :                .
+ *                     |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|                .
+ *                     |                              |
+ *                     |   Remapped Physical Memory   |               RW/--
+ *                     |                              |
  *    KERNBASE ----->  +------------------------------+ 0xf0000000
- *                     |      Invalid Memory (*)      | --/--  PTSIZE
- *    KSTACKTOP ---->  +------------------------------+ 0xefc00000      --+
- *                     |     CPU0's Kernel Stack      | RW/--  KSTKSIZE   |
- *                     | - - - - - - - - - - - - - - -|                   |
- *                     |      Invalid Memory (*)      | --/--  KSTKGAP    |
- *                     +------------------------------+                   |
- *                     |     CPU1's Kernel Stack      | RW/--  KSTKSIZE   |
- *                     | - - - - - - - - - - - - - - -|                 PTSIZE
- *                     |      Invalid Memory (*)      | --/--  KSTKGAP    |
- *                     +------------------------------+                   |
- *                     :              .               :                   |
- *                     :              .               :                   |
- *    ULIM     ------> +------------------------------+ 0xef800000      --+
- *                     |  Cur. Page Table (User R-)   | R-/R-  PTSIZE
- *    UVPT      ---->  +------------------------------+ 0xef400000
- *                     |          RO PAGES            | R-/R-  PTSIZE
- *    UPAGES    ---->  +------------------------------+ 0xef000000
- *                     |           RO ENVS            | R-/R-  PTSIZE
- * UTOP,UENVS ------>  +------------------------------+ 0xeec00000
- * UXSTACKTOP -/       |     User Exception Stack     | RW/RW  PGSIZE
- *                     +------------------------------+ 0xeebff000
- *                     |       Empty Memory (*)       | --/--  PGSIZE
- *    USTACKTOP  --->  +------------------------------+ 0xeebfe000
- *                     |      Normal User Stack       | RW/RW  PGSIZE
+ *                     |       Empty Memory (*)       |               --/--  --PTSIZE
+ *    KSTACKTOP ---->  +------------------------------+ 0xefc00000           -----------+
+ *                     |         Kernel Stack         |               RW/--  --KSTKSIZE |
+ *                     | - - - - - - - - - - - - - - -|                               PTSIZE
+ *                     |      Invalid Memory (*)      |               --/--             |
+ *  / ULIM     ----->  +==============================+ 0xef800000           -----------+
+ * |                   |  Cur. Page Table (User R-)   |               R-/R-  --PTSIZE
+ * |  UVPT      ---->  +------------------------------+ 0xef400000
+ * |                   |          RO PAGES            |               R-/R-  --PTSIZE
+ * |  UPAGES    ---->  +------------------------------+ 0xef000000
+ * |                   |           RO ENVS            |               R-/R-  --PTSIZE
+ * |/ UTOP,UENVS --->  +------------------------------+ 0xeec00000
+ * |  UXSTACKTOP -/    |     User Exception Stack     |               RW/RW  --PGSIZE
+ * |                   +------------------------------+ 0xeebff000
+ * |                   |       Empty Memory (*)       |               --/--  --PGSIZE
+ * |/ USTACKTOP  --->  +------------------------------+ 0xeebfe000
+ * |                   |      Normal User Stack       |               RW/RW  --PGSIZE
  *                     +------------------------------+ 0xeebfd000
- *                     |                              |
- *                     |                              |
- *                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * U                   |                              |
+ * S                   |                              |
+ * E                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * R                   .                              .
  *                     .                              .
- *                     .                              .
- *                     .                              .
- *                     |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|
- *                     |     Program Data & Heap      |
- *    UTEXT -------->  +------------------------------+ 0x00800000
- *    PFTEMP ------->  |       Empty Memory (*)       |        PTSIZE
- *                     |                              |
- *    UTEMP -------->  +------------------------------+ 0x00400000      --+
- *                     |       Empty Memory (*)       |                   |
- *                     | - - - - - - - - - - - - - - -|                   |
- *                     |  User STAB Data (optional)   |                 PTSIZE
- *    USTABDATA ---->  +------------------------------+ 0x00200000        |
- *                     |       Empty Memory (*)       |                   |
- *    0 ------------>  +------------------------------+                 --+
+ * |                   .                              .
+ * |                   |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|
+ * |                   |     Program Data & Heap      |
+ * |  UTEXT -------->  +------------------------------+ 0x00800000
+ * |  PFTEMP ------->  |       Empty Memory (*)       |               --PTSIZE
+ * |                   |                              |
+ * |  UTEMP -------->  +------------------------------+ 0x00400000      --+
+ * |                   |       Empty Memory (*)       |                   |
+ * |                   | - - - - - - - - - - - - - - -|                   |
+ * |                   |  User STAB Data (optional)   |                 PTSIZE
+ * |  USTABDATA ---->  +------------------------------+ 0x00200000        |
+ * |                   |       Empty Memory (*)       |                   |
+ *  \ 0 ------------>  +------------------------------+                 --+
  *
  * (*) Note: The kernel ensures that "Invalid Memory" (ULIM) is *never*
  *     mapped.  "Empty Memory" is normally unmapped, but user programs may
  *     map pages there if desired.  JOS user programs map pages temporarily
  *     at UTEMP.
  */
-
 
 // All physical memory mapped at this address
 #define	KERNBASE	0xF0000000
@@ -164,8 +157,8 @@ typedef uint32_t pde_t;
  * will always be available at virtual address (VPT + (VPT >> PGSHIFT)), to
  * which vpd is set in entry.S.
  */
-extern volatile pte_t vpt[];     // VA of "virtual page table"
-extern volatile pde_t vpd[];     // VA of current page directory
+extern volatile pte_t vpt[];    // VA of "virtual page table"
+extern volatile pde_t vpd[];    // VA of current page directory
 #endif
 
 /*
@@ -179,16 +172,16 @@ extern volatile pde_t vpd[];     // VA of current page directory
  * with page2pa() in kern/pmap.h.
  */
 struct Page {
-	// Next page on the free list.
-	struct Page *pp_link;
+  // Next page on the free list.
+  struct Page *pp_link;
 
-	// pp_ref is the count of pointers (usually in page table entries)
-	// to this page, for pages allocated using page_alloc.
-	// Pages allocated at boot time using pmap.c's
-	// boot_alloc do not have valid reference count fields.
+  // pp_ref is the count of pointers (usually in page table entries)
+  // to this page, for pages allocated using page_alloc.
+  // Pages allocated at boot time using pmap.c's
+  // boot_alloc do not have valid reference count fields.
 
-	uint16_t pp_ref;
+  uint32_t pp_ref;
 };
 
-#endif /* !__ASSEMBLER__ */
-#endif /* !JOS_INC_MEMLAYOUT_H */
+#endif                          /* !__ASSEMBLER__ */
+#endif                          /* !JOS_INC_MEMLAYOUT_H */

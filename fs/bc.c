@@ -1,5 +1,10 @@
-
+#include <inc/x86.h>
 #include "fs.h"
+
+// set max memory usage to 4096 * 4096 = 16M
+#define BC_MAX_SIZE (4096u)
+static uint32_t bc_mapped_count = 0;
+static uintptr_t bc_mapped_va[BC_MAX_SIZE] = {0};
 
 // Return the virtual address of this disk block.
 void*
@@ -22,6 +27,27 @@ bool
 va_is_dirty(void *va)
 {
 	return (vpt[PGNUM(va)] & PTE_D) != 0;
+}
+
+// evict the given va
+static void
+bc_evict(void * va)
+{
+  flush_block(va);
+  const uint32_t aligned = PTE_ADDR(va);
+  sys_page_unmap(0, (void *)aligned);
+}
+
+// if reached maximize capacity, evict a random page.
+static void
+bc_balance_1(void)
+{
+  if (bc_mapped_count < BC_MAX_SIZE) return;
+  // full, evict one.
+  const uint32_t rand_id = (uint32_t)read_tsc() % BC_MAX_SIZE;
+  bc_evict((void *)bc_mapped_va[rand_id]);
+  bc_mapped_va[rand_id] = bc_mapped_va[BC_MAX_SIZE-1];
+  bc_mapped_va[BC_MAX_SIZE-1] = 0;
 }
 
 // Fault any disk block that is read or written in to memory by
@@ -49,7 +75,28 @@ bc_pgfault(struct UTrapframe *utf)
 	// the page dirty).
 	//
 	// LAB 5: Your code here
-	panic("bc_pgfault not implemented");
+  assert(!va_is_mapped(addr));
+  const uint32_t aligned = PTE_ADDR(addr);
+  const uint32_t blockaddr = aligned - DISKMAP;
+  const unsigned perm = PTE_U | PTE_W;
+  bc_balance_1();
+  const int ra = sys_page_alloc(0, (void *)aligned, perm);
+  if (ra != 0) {
+    panic("cannot alloc va %08x, disk offset %08x", aligned, blockaddr);
+  }
+  bc_mapped_va[bc_mapped_count] = aligned;
+  bc_mapped_count++;
+  // read all sectors from disk. here we only read one sector (same size)
+  const uint32_t sno = blockaddr / SECTSIZE;
+  const int rr = ide_read(sno, (void *)(aligned), PGSIZE / SECTSIZE);
+  if (rr != 0) {
+    panic("cannot read sector at %08x", sno);
+  }
+  // mark as non-dirty -- remap would work
+  const int rm = sys_page_map(0, (void *)aligned, 0, (void *)aligned, perm);
+  if (rm != 0) {
+    panic("remap not work");
+  }
 
 	// Check that the block we read was allocated. (exercise for
 	// the reader: why do we do this *after* reading the block
@@ -74,7 +121,22 @@ flush_block(void *addr)
 		panic("flush_block of bad va %08x", addr);
 
 	// LAB 5: Your code here.
-	panic("flush_block not implemented");
+  if ((!va_is_mapped(addr)) || (!va_is_dirty(addr))) {
+    return;
+  }
+  const uint32_t aligned = PTE_ADDR(addr);
+  const uint32_t blockaddr = aligned - DISKMAP;
+  const uint32_t sno = blockaddr / SECTSIZE;
+  const int rw = ide_write(sno, (void *)(aligned), PGSIZE / SECTSIZE);
+  if (rw != 0) {
+    panic("cannot write sectors at %08x", sno);
+  }
+
+  const unsigned perm = vpt[PGNUM(addr)] & PTE_SYSCALL;
+  const int rm = sys_page_map(0, (void *)aligned, 0, (void *)aligned, perm);
+  if (rm != 0) {
+    panic("remap not work");
+  }
 }
 
 // Test that the block cache works, by smashing the superblock and

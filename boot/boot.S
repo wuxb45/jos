@@ -74,6 +74,7 @@ spin:
 
 # Bootstrap GDT
 .p2align 2                                # force 4 byte alignment
+# see inc/mmu.h for details
 gdt:
   SEG_NULL				# null seg
   SEG(STA_X|STA_R, 0x0, 0xffffffff)	# code seg

@@ -6,6 +6,7 @@
 #include <inc/types.h>
 #include <inc/trap.h>
 #include <inc/memlayout.h>
+#include <kern/spinlock.h>
 
 typedef int32_t envid_t;
 
@@ -30,20 +31,20 @@ typedef int32_t envid_t;
 #define ENVX(envid)		((envid) & (NENV - 1))
 
 // Values of env_status in struct Env
-enum {
+enum EnvStatus{
 	ENV_FREE = 0,
-	ENV_DYING,
-	ENV_RUNNABLE,
-	ENV_RUNNING,
-	ENV_NOT_RUNNABLE
+	ENV_DYING = 1,
+	ENV_RUNNABLE = 2,
+	ENV_RUNNING = 3,
+	ENV_NOT_RUNNABLE = 4,
 };
 
 // Special environment types
 enum EnvType {
 	ENV_TYPE_USER = 0,
-	ENV_TYPE_IDLE,
-	ENV_TYPE_FS,		// File system server
-	ENV_TYPE_NS,		// Network server
+	ENV_TYPE_IDLE = 1,
+	ENV_TYPE_FS = 2,		// File system server
+	ENV_TYPE_NS = 3,		// Network server
 };
 
 struct Env {
@@ -52,7 +53,7 @@ struct Env {
 	envid_t env_id;			// Unique environment identifier
 	envid_t env_parent_id;		// env_id of this env's parent
 	enum EnvType env_type;		// Indicates special system environments
-	unsigned env_status;		// Status of the environment
+	enum EnvStatus env_status;		// Status of the environment
 	uint32_t env_runs;		// Number of times environment has run
 	int env_cpunum;			// The CPU that the env is running on
 
@@ -68,6 +69,19 @@ struct Env {
 	uint32_t env_ipc_value;		// Data value sent to us
 	envid_t env_ipc_from;		// envid of the sender
 	int env_ipc_perm;		// Perm of page mapping received
+
+  // Challenge: non-retry send.
+  // acquire the lock when performing operation on waiting_id.
+  // leave and yield when anyone is waiting
+  struct spinlock env_ipc_queue_lock;
+  envid_t env_ipc_waiting_count;
+
+  // buffer for outgoing data
+	bool env_ipc_sending;		// Env is blocked sending
+	void *env_ipc_va_send;		// VA at which to map sending page
+	uint32_t env_ipc_value_send;		// Data value to send
+	envid_t env_ipc_to;		// envid of the receiver
+	int env_ipc_perm_send;		// Perm of page mapping received
 };
 
 #endif // !JOS_INC_ENV_H

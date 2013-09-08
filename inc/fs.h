@@ -26,6 +26,9 @@
 
 #define MAXFILESIZE	((NDIRECT + NINDIRECT) * BLKSIZE)
 
+#define BNOTOVA(bno) ((((uint32_t)(bno)) * BLKSIZE + DISKMAP))
+#define VATOBNO(va) ((((uint32_t)(va)) - DISKMAP) / BLKSIZE)
+
 struct File {
 	char f_name[MAXNAMELEN];	// filename
 	off_t f_size;			// file size in bytes
@@ -62,15 +65,15 @@ struct Super {
 // Definitions for requests from clients to file system
 enum {
 	FSREQ_OPEN = 1,
-	FSREQ_SET_SIZE,
+	FSREQ_SET_SIZE = 2,
 	// Read returns a Fsret_read on the request page
-	FSREQ_READ,
-	FSREQ_WRITE,
+	FSREQ_READ = 3,
+	FSREQ_WRITE = 4,
 	// Stat returns a Fsret_stat on the request page
-	FSREQ_STAT,
-	FSREQ_FLUSH,
-	FSREQ_REMOVE,
-	FSREQ_SYNC
+	FSREQ_STAT = 5,
+	FSREQ_FLUSH = 6,
+	FSREQ_REMOVE = 7,
+	FSREQ_SYNC = 8,
 };
 
 union Fsipc {

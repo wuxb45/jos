@@ -3,6 +3,7 @@
 #include <kern/env.h>
 #include <kern/pmap.h>
 #include <kern/monitor.h>
+#include <kern/spinlock.h>
 
 
 // Choose a user environment to run and run it.
@@ -29,6 +30,24 @@ sched_yield(void)
 	// below to switch to this CPU's idle environment.
 
 	// LAB 4: Your code here.
+  struct Env *cur = curenv;
+  int baseid;
+  if (cur) {
+    baseid = ENVX(cur->env_id);
+  } else {
+    baseid = 0;
+  }
+  for (i = 0; i < NENV; i++) {
+    const int id = (baseid + i) % NENV;
+    if ((envs[id].env_status == ENV_RUNNABLE) &&
+        (envs[id].env_type != ENV_TYPE_IDLE)) {
+      env_run(&envs[id]); // never return;
+    }
+  }
+  // cannot find another env, try the current one;
+  if (cur && (cur->env_status == ENV_RUNNING)) { // only my self
+    env_run(cur);
+  }
 
 	// For debugging and testing purposes, if there are no
 	// runnable environments other than the idle environments,
