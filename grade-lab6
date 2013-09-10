@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 import os, re, threading, socket, time, urllib2, shutil, struct, difflib
 from gradelib import *

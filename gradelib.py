@@ -230,8 +230,8 @@ def color(name, text):
     return text
 
 def reset_fs():
-    if os.path.exists("obj/fs/clean-fs.img"):
-        shutil.copyfile("obj/fs/clean-fs.img", "obj/fs/fs.img")
+    if os.path.exists("/tmp/obj/fs/clean-fs.img"):
+        shutil.copyfile("/tmp/obj/fs/clean-fs.img", "/tmp/obj/fs/fs.img")
 
 ##################################################################
 # Controllers
@@ -461,7 +461,7 @@ Failed to shutdown QEMU.  You might need to 'killall qemu' or
         keyword arguments are as for run_qemu.  This runs on a disk
         snapshot unless the keyword argument 'snapshot' is False."""
 
-        maybe_unlink("obj/kern/init.o", "obj/kern/kernel")
+        maybe_unlink("/tmp/obj/kern/init.o", "/tmp/obj/kern/kernel")
         if kw.pop("snapshot", True):
             kw.setdefault("make_args", []).append("QEMUEXTRA+=-snapshot")
         self.run_qemu(target_base="run-%s" % binary, *monitors, **kw)
@@ -507,7 +507,7 @@ def stop_breakpoint(addr):
 
     def setup_breakpoint(runner):
         if isinstance(addr, str):
-            addrs = [int(sym[:8], 16) for sym in file("obj/kern/kernel.sym")
+            addrs = [int(sym[:8], 16) for sym in file("/tmp/obj/kern/kernel.sym")
                      if sym[11:].strip() == addr]
             assert len(addrs), "Symbol %s not found" % addr
             runner.gdb.breakpoint(addrs[0])
