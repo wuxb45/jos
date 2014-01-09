@@ -190,7 +190,7 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func)
 //	-E_NO_MEM if there's no memory to allocate the new page,
 //		or to allocate any necessary page tables.
 static int
-sys_page_alloc(envid_t envid, void *va, int perm)
+sys_page_alloc(envid_t envid, void *va, unsigned perm)
 {
 	// Hint: This function is a wrapper around page_alloc() and
 	//   page_insert() from kern/pmap.c.
@@ -226,7 +226,7 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 //	-E_NO_MEM if there's no memory to allocate any necessary page tables.
 static int
 sys_page_map(envid_t srcenvid, void *srcva,
-	     envid_t dstenvid, void *dstva, int perm)
+	     envid_t dstenvid, void *dstva, unsigned perm)
 {
 	// Hint: This function is a wrapper around page_lookup() and
 	//   page_insert() from kern/pmap.c.
@@ -548,9 +548,9 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
     case SYS_env_set_status:
       return sys_env_set_status((envid_t)a1, (int)a2);
     case SYS_page_alloc:
-      return sys_page_alloc((envid_t)a1, (void *)a2, (int)a3);
+      return sys_page_alloc((envid_t)a1, (void *)a2, (unsigned)a3);
     case SYS_page_map:
-      return sys_page_map((envid_t)a1, (void *)a2, (envid_t)a3, (void *)a4, (int)a5);
+      return sys_page_map((envid_t)a1, (void *)a2, (envid_t)a3, (void *)a4, (unsigned)a5);
     case SYS_page_unmap:
       return sys_page_unmap((envid_t)a1, (void *)a2);
     case SYS_env_set_pgfault_upcall:
@@ -574,4 +574,3 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
       return -E_INVAL;
   }
 }
-
